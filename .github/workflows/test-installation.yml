@@ -1,0 +1,162 @@
+name: Test Installation (KVM)
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        description: 'Enable tmate debug session on failure'
+        required: false
+        default: 'false'
+        type: boolean
+      distro:
+        description: 'Distro to test (all / debian12 / ubuntu2404)'
+        required: false
+        default: 'all'
+        type: string
+
+jobs:
+  test:
+    name: Test on ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: debian12
+            name: "Debian 12 (Bookworm)"
+            image_url: "https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2"
+            default_user: debian
+          - distro: ubuntu2404
+            name: "Ubuntu 24.04 LTS (Noble)"
+            image_url: "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
+            default_user: ubuntu
+
+    steps:
+      - name: Skip matrix entry if specific distro requested
+        if: github.event.inputs.distro != 'all' && github.event.inputs.distro != '' && github.event.inputs.distro != matrix.distro
+        run: |
+          echo "Skipping ${{ matrix.distro }} — only running ${{ github.event.inputs.distro }}"
+          exit 0
+
+      - uses: actions/checkout@v4
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | \
+            sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls /dev/kvm
+          echo "KVM enabled ✓"
+
+      - name: Install host tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            qemu-system-x86 \
+            qemu-utils \
+            cloud-image-utils \
+            genisoimage \
+            sshpass \
+            openssh-client \
+            python3-pip
+          pip3 install --quiet vncdotool
+
+      - name: Cache cloud image
+        id: cache-image
+        uses: actions/cache@v4
+        with:
+          path: /tmp/cloud-images
+          key: cloud-image-${{ matrix.distro }}-v1
+
+      - name: Download ${{ matrix.name }} cloud image
+        if: steps.cache-image.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p /tmp/cloud-images
+          wget -q --show-progress \
+            -O "/tmp/cloud-images/${{ matrix.distro }}.img" \
+            "${{ matrix.image_url }}"
+          echo "Downloaded $(du -sh /tmp/cloud-images/${{ matrix.distro }}.img | cut -f1) image"
+
+      - name: Provision VM (${{ matrix.distro }})
+        run: |
+          bash scripts/kvm/provision-vm.sh \
+            "${{ matrix.distro }}" \
+            "/tmp/cloud-images/${{ matrix.distro }}.img"
+
+      - name: Wait for VM SSH
+        run: bash scripts/kvm/wait-for-ssh.sh 127.0.0.1 2222 120
+
+      - name: Run installation script in VM
+        run: bash scripts/kvm/run-install-test.sh "${{ matrix.distro }}"
+
+      - name: Verify desktop environment
+        run: bash scripts/kvm/verify-desktop.sh "${{ matrix.distro }}"
+
+      - name: Capture screenshot via VNC
+        if: always()
+        run: bash scripts/kvm/capture-screenshot.sh "${{ matrix.distro }}"
+
+      - name: Collect performance metrics
+        run: bash scripts/kvm/collect-metrics.sh "${{ matrix.distro }}"
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.distro }}
+          path: test-results/${{ matrix.distro }}/
+          retention-days: 14
+
+      - name: Debug session (tmate)
+        if: failure() && github.event.inputs.debug_enabled == 'true'
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 30
+        with:
+          limit-access-to-actor: true
+
+      - name: Teardown VM
+        if: always()
+        run: bash scripts/kvm/teardown-vm.sh "${{ matrix.distro }}"
+
+  report:
+    name: Test Report
+    runs-on: ubuntu-latest
+    needs: test
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: test-results/
+
+      - name: Generate summary
+        run: |
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          for dir in test-results/test-results-*/; do
+            distro=$(basename "$dir" | sed 's/test-results-//')
+            echo "### $distro" >> $GITHUB_STEP_SUMMARY
+            if [ -f "$dir/install.log" ]; then
+              result=$(tail -1 "$dir/install.log")
+              echo "- Install: $result" >> $GITHUB_STEP_SUMMARY
+            fi
+            if [ -f "$dir/verify.log" ]; then
+              result=$(tail -1 "$dir/verify.log")
+              echo "- Verify: $result" >> $GITHUB_STEP_SUMMARY
+            fi
+            if [ -f "$dir/screenshot.png" ]; then
+              echo "- Screenshot: ✓ captured" >> $GITHUB_STEP_SUMMARY
+            fi
+            if [ -f "$dir/metrics.json" ]; then
+              echo "- Metrics: ✓ collected" >> $GITHUB_STEP_SUMMARY
+            fi
+          done

@@ -1,0 +1,12 @@
+# CI test artifacts (generated, not committed)
+test-results/**
+!test-results/.gitkeep
+
+# KVM temp dirs
+/tmp/kvm-test/
+
+# Editor
+.vscode/
+*.swp
+*.swo
+*~
