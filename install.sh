@@ -97,9 +97,9 @@ install_base() {
     software-properties-common \
     xdg-utils \
     dbus \
-    pipewire pipewire-audio \
+    pipewire pipewire-pulse \
     wireplumber \
-    polkit \
+    policykit-1 \
     xwayland
 }
 

@@ -74,12 +74,13 @@ set +e
 vm_ssh "
   cd ~/debian-hyprland-os
   chmod +x install.sh
-  sudo DEBIAN_FRONTEND=noninteractive \
-    CI=true \
-    bash install.sh --non-interactive 2>&1 | tee /tmp/install.log
-  echo \"EXIT_CODE=\$?\" >> /tmp/install.log
-" | tee "${RESULTS_DIR}/install.log"
-INSTALL_RC=$?
+  sudo DEBIAN_FRONTEND=noninteractive CI=true bash install.sh --non-interactive > /tmp/install.log 2>&1
+  INSTALL_EXIT=\$?
+  cat /tmp/install.log
+  echo \"EXIT_CODE=\${INSTALL_EXIT}\"
+  exit \$INSTALL_EXIT
+" 2>&1 | tee "${RESULTS_DIR}/install.log"
+INSTALL_RC=${PIPESTATUS[0]}
 set -e
 
 INSTALL_ELAPSED=$(( $(date +%s) - INSTALL_START ))
