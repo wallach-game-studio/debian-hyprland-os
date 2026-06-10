@@ -22,16 +22,26 @@ SSH_OPTS=(
   -p "$SSH_PORT"
 )
 
+SCP_OPTS=(
+  -o StrictHostKeyChecking=no
+  -o UserKnownHostsFile=/dev/null
+  -o ConnectTimeout=10
+  -o BatchMode=yes
+  -o LogLevel=ERROR
+  -i "${WORK_DIR}/vm_key"
+  -P "$SSH_PORT"
+)
+
 vm_ssh() {
   ssh "${SSH_OPTS[@]}" "${SSH_USER}@${SSH_HOST}" "$@"
 }
 
 vm_scp_to() {
-  scp -r "${SSH_OPTS[@]}" "$1" "${SSH_USER}@${SSH_HOST}:$2"
+  scp -r "${SCP_OPTS[@]}" "$1" "${SSH_USER}@${SSH_HOST}:$2"
 }
 
 vm_scp_from() {
-  scp "${SSH_OPTS[@]}" "${SSH_USER}@${SSH_HOST}:$1" "$2"
+  scp "${SCP_OPTS[@]}" "${SSH_USER}@${SSH_HOST}:$1" "$2"
 }
 
 echo "==> Running installation test on ${DISTRO}..."
