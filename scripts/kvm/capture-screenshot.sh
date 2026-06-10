@@ -39,8 +39,8 @@ VNC_SCREENSHOT="${RESULTS_DIR}/vnc-screenshot.png"
 
 # vncdotool for VNC capture
 if command -v vncdo >/dev/null 2>&1; then
-  vncdo -s "127.0.0.1::590${VNC_DISPLAYI}" screenshot "$VNC_SCREENSHOT" 2>/dev/null && \
-    echo "--> VNC screenshot captured ✓
+  vncdo -s "127.0.0.1::590${VNC_DISPLAY}" screenshot "$VNC_SCREENSHOT" 2>/dev/null && \
+    echo "--> VNC screenshot captured" \
   || \
     echo "WARN: VNC screenshot failed, trying fallback..."
 fi

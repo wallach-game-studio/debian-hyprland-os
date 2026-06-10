@@ -84,7 +84,7 @@ qemu-system-x86_64 \
   -drive file="${WORK_DIR}/disk.img",format=qcow2,if=virtio,cache=writeback \
   -drive file="${WORK_DIR}/cloud-init.iso",format=raw,if=virtio,readonly=on \
   -device virtio-net-pci,netdev=net0 \
-  -netdev user,id=net0,hostfwdètcp:127.0.0.1:${SSH_PORT}-:22 \
+  -netdev user,id=net0,hostfwd=tcp:127.0.0.1:${SSH_PORT}-:22 \
   -device virtio-vga \
   -vnc 127.0.0.1:${VNC_DISPLAY} \
   -display none \

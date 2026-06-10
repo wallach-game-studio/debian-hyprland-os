@@ -11,7 +11,7 @@ SSH_USER=tester
 
 echo "==> Tearing down VM: ${DISTRO}..."
 
-# --- Graceful shutdown via SSH" ---
+# --- Graceful shutdown via SSH ---
 if [ -f "${WORK_DIR}/vm_key" ]; then
   SSH_OPTS=(
     -o StrictHostKeyChecking=no

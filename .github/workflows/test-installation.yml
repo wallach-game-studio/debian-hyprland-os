@@ -17,12 +17,17 @@ on:
         required: false
         default: 'all'
         type: string
+      manual_test_minutes:
+        description: 'Minutes to keep VM alive for web VNC testing (0 = disabled)'
+        required: false
+        default: '15'
+        type: string
 
 jobs:
   test:
     name: Test on ${{ matrix.name }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     strategy:
       fail-fast: false
@@ -79,9 +84,10 @@ jobs:
         if: steps.cache-image.outputs.cache-hit != 'true'
         run: |
           mkdir -p /tmp/cloud-images
-          wget -q --show-progress \
+          echo "Downloading image (this may take a few minutes)..."
+          wget --progress=dot:giga \
             -O "/tmp/cloud-images/${{ matrix.distro }}.img" \
-            "${{ matrix.image_url }}"
+            "${{ matrix.image_url }}" 2>&1
           echo "Downloaded $(du -sh /tmp/cloud-images/${{ matrix.distro }}.img | cut -f1) image"
 
       - name: Provision VM (${{ matrix.distro }})
@@ -120,6 +126,68 @@ jobs:
         timeout-minutes: 30
         with:
           limit-access-to-actor: true
+
+      - name: Web VNC tunnel for manual testing
+        if: |
+          always() &&
+          github.event.inputs.manual_test_minutes != '0' &&
+          github.event.inputs.manual_test_minutes != ''
+        run: |
+          VM_PID_FILE="/tmp/kvm-test/${{ matrix.distro }}/vm.pid"
+          if [ ! -f "$VM_PID_FILE" ] || ! kill -0 "$(cat "$VM_PID_FILE" 2>/dev/null)" 2>/dev/null; then
+            echo "VM not running, skipping web VNC tunnel"
+            exit 0
+          fi
+
+          echo "==> Starting web VNC tunnel for ${{ github.event.inputs.manual_test_minutes }} minutes..."
+          MANUAL_MINUTES=${{ github.event.inputs.manual_test_minutes }}
+
+          # Install noVNC + websockify
+          sudo apt-get install -y -qq novnc python3-websockify 2>/dev/null || pip3 install --quiet websockify 2>/dev/null || true
+          git clone --depth 1 https://github.com/novnc/noVNC.git /tmp/novnc 2>/dev/null || true
+
+          # Start websockify on port 6080 -> VNC port 5900
+          websockify --web /tmp/novnc 6080 127.0.0.1:5900 &
+          WS_PID=$!
+          echo "Websockify PID: $WS_PID"
+
+          # Give it a moment to start
+          sleep 2
+
+          # Expose via Pinggy (free SSH tunnel, no registration)
+          echo "--> Establishing public tunnel via pinggy.io..."
+          ssh -p 443 \
+            -o StrictHostKeyChecking=no \
+            -o ServerAliveInterval=30 \
+            -R 0:localhost:6080 \
+            a@pinggy.io 2>&1 | head -5 &
+          TUNNEL_PID=$!
+
+          # Wait for tunnel URL to appear in logs
+          sleep 8
+
+          echo ""
+          echo "============================================"
+          echo "  MANUAL TESTING — VM KEPT ALIVE"
+          echo "============================================"
+          echo ""
+          echo "  VNC is accessible via the tunnel above."
+          echo "  Copy the pinggy.io URL into your browser."
+          echo ""
+          echo "  The VM will be torn down in ${MANUAL_MINUTES} minutes."
+          echo "  To cancel early, stop the workflow in GitHub UI."
+          echo ""
+          echo "  Alternative: SSH in via tmate (see step above)"
+          echo "  and run: ssh -L 5900:localhost:5900 ..."
+          echo "============================================"
+
+          # Sleep for the specified duration
+          sleep "$(( MANUAL_MINUTES * 60 ))"
+
+          # Cleanup
+          kill $TUNNEL_PID 2>/dev/null || true
+          kill $WS_PID 2>/dev/null || true
+          echo "Manual test window closed."
 
       - name: Teardown VM
         if: always()

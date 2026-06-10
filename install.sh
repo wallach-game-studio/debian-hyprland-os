@@ -115,7 +115,7 @@ install_hyprland() {
       ;;
     debian:12)
       warn "Hyprland not in Debian 12 stable repos, using upstream script..."
-      install_hyprland_from_source_debian12
+      install_hyprland_from_source_debian12 || warn "Source build failed — continuing with available packages"
       ;;
     *)
       warn "Unknown distro - attempting generic apt install..."
@@ -125,8 +125,9 @@ install_hyprland() {
 }
 
 install_hyprland_from_source_debian12() {
-  grep -q "contrib" /etc/apt/sources.list || \
-    sed -i 's/main$/main contrib non-free non-free-firmware/' /etc/apt/sources.list
+  grep -q "contrib" /etc/apt/sources.list 2>/dev/null || \
+    grep -q "contrib" /etc/apt/sources.list.d/*.list 2>/dev/null || \
+    sed -i 's/main$/main contrib non-free non-free-firmware/' /etc/apt/sources.list 2>/dev/null || true
   apt_update
 
   apt_install \
@@ -142,10 +143,62 @@ install_hyprland_from_source_debian12() {
     libtomlplusplus-dev \
     hyprutils-dev hyprlang-dev \
     hyprwayland-scanner \
-    aquamarine-dev
+    aquamarine-dev \
+    libxcb-errors-dev \
+    libxcb-icccm4-dev \
+    libxcb-render-util0-dev \
+    hyprcursor-dev \
+    libhyprcursor-dev \
+    hyprgraphics-dev
 
-  # TODO(issue #1): Clone and build Hyprland from source
-  warn "TODO: Hyprland source build for Debian 12 - not yet implemented"
+  BUILD_DIR="/tmp/hyprland-build"
+  HYPRLAND_REPO="https://github.com/hyprwm/Hyprland.git"
+  HYPRLAND_TAG="v0.47.2"
+
+  log "Cloning Hyprland ${HYPRLAND_TAG} (this may take a while)..."
+  mkdir -p "$BUILD_DIR"
+  git clone --depth 1 --branch "$HYPRLAND_TAG" "$HYPRLAND_REPO" "${BUILD_DIR}/Hyprland" 2>/dev/null || {
+    warn "Git clone failed, attempting to use system packages only"
+    warn "Install Hyprland manually from: https://github.com/hyprwm/Hyprland/releases"
+    return 1
+  }
+
+  cd "${BUILD_DIR}/Hyprland"
+  log "Building Hyprland..."
+  set +e
+  cmake --no-warn-unused-cli \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -B build 2>&1 | tail -5
+  local RC_BUILD=${PIPESTATUS[0]}
+  set -e
+  if [ "$RC_BUILD" -ne 0 ]; then
+    warn "CMake configure failed (exit $RC_BUILD)"
+    cd /
+    rm -rf "$BUILD_DIR"
+    return 1
+  fi
+
+  set +e
+  cmake --build build -j "$(nproc)" 2>&1 | tail -5
+  RC_BUILD=${PIPESTATUS[0]}
+  set -e
+  if [ "$RC_BUILD" -ne 0 ]; then
+    warn "CMake build failed (exit $RC_BUILD)"
+    cd /
+    rm -rf "$BUILD_DIR"
+    return 1
+  fi
+
+  set +e
+  log "Installing Hyprland..."
+  cmake --install build 2>&1 | tail -5
+  RC_BUILD=${PIPESTATUS[0]}
+  set -e
+
+  cd /
+  rm -rf "$BUILD_DIR"
+  log "Hyprland built and installed from source"
 }
 
 # ---------------------------------------------------------------------------
@@ -219,7 +272,7 @@ bind = SUPER, Return, exec, $terminal
 bind = SUPER, Space, exec, $menu
 bind = SUPER, Q, killactive
 bind = SUPER SHIFT, Q, exit
-bind = SUPER, F, zullscreen
+bind = SUPER, F, fullscreen
 bind = SUPER, 1, workspace, 1
 bind = SUPER, 2, workspace, 2
 bind = SUPER, 3, workspace, 3
@@ -252,6 +305,22 @@ HYPRCONF
     cp -r configs/dunst/. "$DUNST_CONFIG/"
   fi
   chown -R "${TARGET_USER}:${TARGET_USER}" "$DUNST_CONFIG"
+
+  # Alacritty
+  local ALACRITTY_CONFIG="${HOME_DIR}/.config/alacritty"
+  mkdir -p "$ALACRITTY_CONFIG"
+  if [ -d "configs/alacritty" ] && [ "$(ls -A configs/alacritty 2>/dev/null)" ]; then
+    cp -r configs/alacritty/. "$ALACRITTY_CONFIG/"
+  fi
+  chown -R "${TARGET_USER}:${TARGET_USER}" "$ALACRITTY_CONFIG"
+
+  # Thunar
+  local THUNAR_CONFIG="${HOME_DIR}/.config/Thunar"
+  mkdir -p "$THUNAR_CONFIG"
+  if [ -d "configs/thunar" ] && [ "$(ls -A configs/thunar 2>/dev/null)" ]; then
+    cp -r configs/thunar/. "$THUNAR_CONFIG/"
+  fi
+  chown -R "${TARGET_USER}:${TARGET_USER}" "$THUNAR_CONFIG"
 }
 
 # ---------------------------------------------------------------------------
@@ -260,13 +329,70 @@ HYPRCONF
 install_nvidia_if_present() {
   $SKIP_NVIDIA && return 0
 
-  if lspci | grep -qi nvidia; then
-    log "Nvidia GPU detected (issue #7)..."
-    warn "Nvidia driver installation - TODO (issue #7, not yet implemented)"
-    # TODO(issue #7): install nvidia-driver, configure Hyprland env vars
-  else
+  if ! lspci | grep -qi nvidia; then
     info "No Nvidia GPU detected, skipping Nvidia setup"
+    return 0
   fi
+
+  log "Nvidia GPU detected — installing proprietary driver..."
+
+  local NVIDIA_PACKAGES=(
+    nvidia-driver
+    firmware-misc-nonfree
+    nvidia-settings
+    nvidia-vaapi-driver
+    libva-nvidia-driver
+  )
+
+  case "${DISTRO_ID}:${DISTRO_VERSION}" in
+    ubuntu:24.04)
+      NVIDIA_PACKAGES=(nvidia-driver-550 nvidia-settings nvidia-vaapi-driver)
+      ;;
+    debian:12)
+      apt_install nvidia-detect 2>/dev/null || true
+      NVIDIA_GPU=$(lspci -nn | grep -i nvidia | head -1 | grep -oP '\[\d{4}:\d{4}\]' | tr -d '[]')
+      if [ -n "$NVIDIA_GPU" ]; then
+        log "Nvidia GPU device ID: ${NVIDIA_GPU}"
+      fi
+      ;;
+  esac
+
+  apt_install "${NVIDIA_PACKAGES[@]}" || {
+    warn "Some Nvidia packages failed to install"
+    warn "Try: sudo apt-get install nvidia-driver"
+  }
+
+  log "Configuring Hyprland for Nvidia..."
+  local TARGET_USER="${SUDO_USER:-$USER}"
+  local HOME_DIR
+  HOME_DIR=$(getent passwd "$TARGET_USER" | cut -d: -f6)
+  local HYPR_CONFIG="${HOME_DIR}/.config/hypr"
+  mkdir -p "$HYPR_CONFIG"
+
+  local NVIDIA_ENV_FILE="${HYPR_CONFIG}/nvidia.conf"
+  cat > "$NVIDIA_ENV_FILE" << 'NVNCONF'
+# Nvidia-specific Hyprland configuration
+# Source: https://wiki.hyprland.org/Nvidia/
+
+env = LIBVA_DRIVER_NAME,nvidia
+env = XDG_SESSION_TYPE,wayland
+env = GBM_BACKEND,nvidia-drm
+env = __GLX_VENDOR_LIBRARY_NAME,nvidia
+env = NVD_BACKEND,direct
+env = WLR_NO_HARDWARE_CURSORS,1
+
+cursor {
+  no_hardware_cursors = true
+}
+NVNCONF
+
+  if [ -f "${HYPR_CONFIG}/hyprland.conf" ]; then
+    grep -q "source = nvidia.conf" "${HYPR_CONFIG}/hyprland.conf" 2>/dev/null || \
+      echo -e "\n# Nvidia support (auto-generated)\nsource = nvidia.conf" >> "${HYPR_CONFIG}/hyprland.conf"
+  fi
+  chown -R "${TARGET_USER}:${TARGET_USER}" "$HYPR_CONFIG"
+
+  log "Nvidia setup complete — reboot recommended"
 }
 
 # ---------------------------------------------------------------------------

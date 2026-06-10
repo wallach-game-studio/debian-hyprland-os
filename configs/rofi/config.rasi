@@ -1,0 +1,137 @@
+* {
+  font: "Noto Sans 12";
+  background: #1e1e1e;
+  background-alt: #2e2e2e;
+  foreground: #ffffff;
+  selected: #33ccff;
+  active: #a6e3a1;
+  urgent: #ff4444;
+
+  margin: 0px;
+  padding: 0px;
+  spacing: 4px;
+}
+
+window {
+  width: 600px;
+  border: 2px;
+  border-color: @selected;
+  background-color: @background;
+  border-radius: 8px;
+  transparency: "real";
+  fullscreen: false;
+  location: center;
+  anchor: center;
+  padding: 12px;
+}
+
+mainbox {
+  children: [ "inputbar", "listview" ];
+  spacing: 8px;
+  padding: 8px;
+}
+
+listview {
+  lines: 10;
+  columns: 1;
+  fixed-height: true;
+  dynamic: true;
+  scrollbar: true;
+  scrollbar-width: 4px;
+  spacing: 4px;
+  padding: 4px 0px;
+}
+
+element {
+  padding: 6px 10px;
+  border-radius: 4px;
+}
+
+element normal.normal {
+  background-color: transparent;
+  text-color: @foreground;
+}
+
+element normal.urgent {
+  background-color: @urgent;
+  text-color: @background;
+}
+
+element normal.active {
+  background-color: @active;
+  text-color: @background;
+}
+
+element selected.normal {
+  background-color: @selected;
+  text-color: @background;
+}
+
+element selected.urgent {
+  background-color: @urgent;
+  text-color: @background;
+}
+
+element selected.active {
+  background-color: @selected;
+  text-color: @background;
+}
+
+element-icon {
+  size: 24px;
+  padding: 0px 8px 0px 0px;
+  vertical-align: 0.5;
+}
+
+element-text {
+  vertical-align: 0.5;
+  text-color: inherit;
+}
+
+inputbar {
+  spacing: 8px;
+  padding: 8px 12px;
+  background-color: @background-alt;
+  border-radius: 6px;
+  children: [ "entry", "dummy", "mode-switcher" ];
+}
+
+entry {
+  padding: 4px 0px;
+  text-color: @foreground;
+  cursor: text;
+  placeholder: "Search...";
+  placeholder-color: #666666;
+  blink: true;
+}
+
+mode-switcher {
+  spacing: 4px;
+}
+
+button {
+  padding: 4px 8px;
+  border-radius: 4px;
+  text-color: @foreground;
+  background-color: transparent;
+}
+
+button selected {
+  background-color: @selected;
+  text-color: @background;
+}
+
+message {
+  padding: 4px 12px;
+  border-radius: 4px;
+  background-color: @background-alt;
+}
+
+textbox {
+  text-color: @foreground;
+}
+
+scrollbar {
+  handle-width: 4px;
+  handle-color: @selected;
+}

@@ -13,8 +13,8 @@ SSH_USER=tester
 
 mkdir -p "$RESULTS_DIR"
 
-SSH_OPTS= 
-  [o StrictHostKeyChecking=no
+SSH_OPTS=(
+  -o StrictHostKeyChecking=no
   -o UserKnownHostsFile=/dev/null
   -o ConnectTimeout=10
   -o BatchMode=yes

@@ -1,0 +1,95 @@
+* {
+  font-family: "Noto Sans", "Font Awesome 6 Free", sans-serif;
+  font-size: 14px;
+  min-height: 0;
+}
+
+window#waybar {
+  background: rgba(30, 30, 30, 0.9);
+  color: #ffffff;
+  border-bottom: 1px solid rgba(50, 50, 50, 0.8);
+}
+
+#workspaces button {
+  padding: 0 8px;
+  background: transparent;
+  color: #888888;
+  border-radius: 0;
+}
+
+#workspaces button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+#workspaces button.active {
+  color: #33ccff;
+  border-bottom: 2px solid #33ccff;
+}
+
+#workspaces button.urgent {
+  color: #ff4444;
+}
+
+#clock {
+  padding: 0 12px;
+  color: #ffffff;
+}
+
+#cpu,
+#memory,
+#network,
+#pulseaudio,
+#backlight,
+#bluetooth,
+#tray {
+  padding: 0 8px;
+}
+
+#cpu {
+  color: #a6e3a1;
+}
+
+#memory {
+  color: #89b4fa;
+}
+
+#network {
+  color: #94e2d5;
+}
+
+#pulseaudio {
+  color: #f5c2e7;
+}
+
+#backlight {
+  color: #fab387;
+}
+
+#bluetooth {
+  color: #89b4fa;
+}
+
+#tray {
+  padding: 0 4px;
+}
+
+#custom-media {
+  padding: 0 12px;
+  color: #cba6f7;
+}
+
+#custom-power {
+  padding: 0 12px;
+  color: #ff4444;
+}
+
+tooltip {
+  background: rgba(30, 30, 30, 0.95);
+  border: 1px solid rgba(50, 50, 50, 0.8);
+  border-radius: 6px;
+}
+
+tooltip label {
+  color: #ffffff;
+}

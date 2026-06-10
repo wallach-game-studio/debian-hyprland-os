@@ -1,0 +1,135 @@
+{
+  "layer": "top",
+  "position": "top",
+  "height": 32,
+  "spacing": 4,
+  "modules-left": ["hyprland/workspaces", "hyprland/submap", "custom/media"],
+  "modules-center": ["hyprland/window"],
+  "modules-right": [
+    "tray",
+    "pulseaudio",
+    "backlight",
+    "network",
+    "bluetooth",
+    "cpu",
+    "memory",
+    "clock",
+    "custom/power"
+  ],
+
+  "hyprland/workspaces": {
+    "disable-scroll": false,
+    "all-outputs": true,
+    "format": "{name}",
+    "persistent-workspaces": {
+      "1": [],
+      "2": [],
+      "3": [],
+      "4": [],
+      "5": []
+    }
+  },
+
+  "hyprland/window": {
+    "format": "{}",
+    "max-length": 50,
+    "separate-outputs": true
+  },
+
+  "clock": {
+    "format": "{:%I:%M %p}",
+    "format-alt": "{:%A, %B %d, %Y}",
+    "tooltip-format": "<tt>{calendar}</tt>",
+    "calendar": {
+      "mode": "month",
+      "mode-mon-col": 3,
+      "weeks-pos": "right",
+      "on-scroll": 1,
+      "format": {
+        "months": "<span color='#33ccff'><b>{}</b></span>",
+        "days": "<span color='#ffffff'><b>{}</b></span>"
+      }
+    },
+    "interval": 60
+  },
+
+  "cpu": {
+    "interval": 5,
+    "format": "CPU {usage}%",
+    "max-length": 12
+  },
+
+  "memory": {
+    "interval": 10,
+    "format": "RAM {percentage}%",
+    "max-length": 12
+  },
+
+  "pulseaudio": {
+    "format": "{icon} {volume}%",
+    "format-muted": "MUTED",
+    "format-icons": {
+      "default": ["", "", ""]
+    },
+    "on-click": "pavucontrol",
+    "scroll-step": 5
+  },
+
+  "backlight": {
+    "device": "intel_backlight",
+    "format": "{icon} {percent}%",
+    "format-icons": ["", "", ""],
+    "on-scroll-up": "brightnessctl s 5%+",
+    "on-scroll-down": "brightnessctl s 5%-",
+    "min-length": 6
+  },
+
+  "network": {
+    "format-wifi": "{essid} ({signalStrength}%)",
+    "format-ethernet": "Connected",
+    "format-disconnected": "Disconnected",
+    "tooltip-format": "{ifname} via {gwaddr}",
+    "interval": 30,
+    "on-click": "nm-connection-editor"
+  },
+
+  "bluetooth": {
+    "format": "",
+    "format-connected": "{num_connections}",
+    "format-off": "",
+    "format-on": "",
+    "tooltip-format": "{controller_alias}\t{controller_address}",
+    "tooltip-format-connected": "{controller_alias}\t{controller_address}\n\n{device_enumerate}",
+    "tooltip-format-enumerate-connected": "{device_alias}\t{device_address}",
+    "on-click": "blueman-manager",
+    "interval": 30
+  },
+
+  "tray": {
+    "icon-size": 16,
+    "spacing": 8
+  },
+
+  "custom/power": {
+    "format": "⏻",
+    "on-click": "wlogout",
+    "tooltip": "Power menu"
+  },
+
+  "custom/media": {
+    "format": "{icon} {}",
+    "return-type": "json",
+    "max-length": 40,
+    "format-icons": {
+      "Playing": "",
+      "Paused": "",
+      "Stopped": ""
+    },
+    "escape": true,
+    "exec": "playerctl -a metadata --format '{\"text\": \"{{artist}} - {{title}}\", \"alt\": \"{{status}}\", \"class\": \"{{status}}\"}' 2>/dev/null || echo '{\"text\": \"\", \"alt\": \"Stopped\"}'",
+    "interval": 5,
+    "on-click": "playerctl play-pause",
+    "on-scroll-up": "playerctl next",
+    "on-scroll-down": "playerctl previous"
+  }
+}
