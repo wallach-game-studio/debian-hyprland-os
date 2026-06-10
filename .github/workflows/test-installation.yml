@@ -97,7 +97,7 @@ jobs:
             "/tmp/cloud-images/${{ matrix.distro }}.img"
 
       - name: Wait for VM SSH
-        run: bash scripts/kvm/wait-for-ssh.sh 127.0.0.1 2222 120
+        run: bash scripts/kvm/wait-for-ssh.sh 127.0.0.1 2222 180 "${{ matrix.distro }}"
 
       - name: Run installation script in VM
         run: bash scripts/kvm/run-install-test.sh "${{ matrix.distro }}"
