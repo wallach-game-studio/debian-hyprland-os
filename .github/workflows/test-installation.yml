@@ -152,41 +152,52 @@ jobs:
           echo "Websockify PID: $WS_PID"
 
           # Give it a moment to start
-          sleep 2
+          sleep 3
 
           # Expose via localhost.run (free SSH tunnel, no registration)
           echo "--> Establishing public tunnel via localhost.run..."
+          TUNNEL_LOG="/tmp/kvm-test/${{ matrix.distro }}/tunnel.log"
           ssh -o StrictHostKeyChecking=no \
               -o ServerAliveInterval=30 \
               -o ExitOnForwardFailure=yes \
+              -o StrictHostKeyChecking=accept-new \
+              -tt \
               -R 80:localhost:6080 \
-              nokey@localhost.run 2>&1 | head -10 &
+              nokey@localhost.run > "$TUNNEL_LOG" 2>&1 &
           TUNNEL_PID=$!
 
-          # Also try pinggy.io as fallback
-          sleep 2
-          ssh -p 443 \
-            -o StrictHostKeyChecking=no \
-            -o ServerAliveInterval=30 \
-            -R 0:localhost:6080 \
-            a@pinggy.io 2>&1 | head -5 &
-          TUNNEL2_PID=$!
-
-          # Wait for any tunnel URL to appear
-          sleep 6
+          # Wait for tunnel URL to appear in the log
+          TUNNEL_URL=""
+          for i in $(seq 1 15); do
+            sleep 2
+            TUNNEL_URL=$(grep -oP 'https?://[a-zA-Z0-9.-]+\.localhost\.run' "$TUNNEL_LOG" 2>/dev/null | head -1)
+            if [ -n "$TUNNEL_URL" ]; then
+              break
+            fi
+          done
 
           echo ""
           echo "============================================"
           echo "  MANUAL TESTING — VM KEPT ALIVE"
           echo "============================================"
+          if [ -n "$TUNNEL_URL" ]; then
+            echo ""
+            echo "  OPEN THIS URL IN YOUR BROWSER:"
+            echo "  =>  $TUNNEL_URL  <="
+            echo ""
+            echo "  You should see the noVNC desktop."
+          else
+            echo ""
+            echo "  Tunnel URL not found. Check tunnel.log below."
+            echo "  Alternative: use 'debug_enabled' to get tmate SSH,"
+            echo "  then port-forward VNC: ssh -L 5900:localhost:5900 ..."
+            echo ""
+            echo "--- tunnel.log ---"
+            tail -20 "$TUNNEL_LOG"
+          fi
           echo ""
-          echo "  Look above for a tunnel URL (localhost.run or pinggy)."
-          echo "  Open it in your browser to access the desktop VNC."
-          echo ""
-          echo "  The VM will be torn down in ${MANUAL_MINUTES} minutes."
-          echo "  To cancel early, stop the workflow in GitHub UI."
-          echo ""
-          echo "  SSH via tmate is also available if tunnel fails."
+          echo "  VM will be torn down in ${MANUAL_MINUTES} minutes."
+          echo "  Cancel early by stopping the workflow in GitHub UI."
           echo "============================================"
 
           # Sleep for the specified duration
