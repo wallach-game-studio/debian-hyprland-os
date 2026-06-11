@@ -139,6 +139,23 @@ install_hyprland() {
   for bin in Hyprland hyprctl hyprpm; do
     ln -sf "${HOME_DIR}/.nix-profile/bin/${bin}" "/usr/local/bin/${bin}"
   done
+
+  # Hyprland/aquamarine needs access to a DRM render node (/dev/dri/renderD*).
+  log "Granting ${TARGET_USER} access to DRM devices..."
+  usermod -aG video,render "$TARGET_USER" 2>/dev/null || true
+
+  # Aquamarine's headless backend is mandatory and requires a render node.
+  # Real GPUs already provide one; VMs without a GPU (e.g. virtio-vga
+  # without virgl) don't, so fall back to vgem (a software render node).
+  if ! ls /dev/dri/renderD* >/dev/null 2>&1; then
+    log "No DRM render node found — loading vgem for headless rendering..."
+    if modprobe vgem 2>/dev/null; then
+      udevadm settle
+      echo vgem > /etc/modules-load.d/vgem.conf
+    else
+      warn "vgem unavailable; Hyprland may fail to start without a GPU"
+    fi
+  fi
 }
 
 # ---------------------------------------------------------------------------

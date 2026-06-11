@@ -95,7 +95,7 @@ vm_ssh "
 
   # Start Hyprland in background, let it run for 10s
   Hyprland 2>&1 &
-  HYPR_PID=\$?
+  HYPR_PID=\$!
   echo \$HYPR_PID > /tmp/hyprland.pid
 
   sleep 10
