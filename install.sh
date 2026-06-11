@@ -149,10 +149,10 @@ install_hyprland() {
   done
 
   # Hyprland/aquamarine needs a DRM device (/dev/dri/cardN) and a render
-  # node (/dev/dri/renderD*) for its GBM-based allocator, plus the 'seat'
-  # group for libseat to talk to seatd.
-  log "Granting ${TARGET_USER} access to DRM/input/seat devices..."
-  usermod -aG video,render,input,seat "$TARGET_USER" 2>/dev/null || true
+  # node (/dev/dri/renderD*) for its GBM-based allocator. seatd's socket
+  # is group-owned by 'video' on Debian/Ubuntu, which also covers libseat.
+  log "Granting ${TARGET_USER} access to DRM/input devices..."
+  usermod -aG video,render,input "$TARGET_USER" 2>/dev/null || true
 
   # `modprobe` lives in kmod, which minimal/cloud images don't always have.
   apt_install kmod
