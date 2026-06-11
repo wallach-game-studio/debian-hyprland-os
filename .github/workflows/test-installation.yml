@@ -127,6 +127,13 @@ jobs:
         with:
           limit-access-to-actor: true
 
+      - name: Start desktop session for manual testing
+        if: |
+          always() &&
+          github.event.inputs.manual_test_minutes != '0' &&
+          github.event.inputs.manual_test_minutes != ''
+        run: bash scripts/kvm/start-manual-desktop.sh "${{ matrix.distro }}"
+
       - name: Web VNC tunnel for manual testing
         if: |
           always() &&
