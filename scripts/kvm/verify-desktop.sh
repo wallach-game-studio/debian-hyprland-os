@@ -128,6 +128,20 @@ vm_ssh "
   echo '--- seatd ---'
   systemctl is-active seatd 2>&1
   ls -la /run/seatd.sock 2>&1
+  echo '--- nix mesa / DRI drivers ---'
+  ls -la \$HOME/.nix-profile/lib/dri/ 2>&1 || echo 'no dri dir in nix-profile'
+  find /nix/store -maxdepth 1 -iname '*mesa*' 2>/dev/null
+  echo '--- LIBGL_DRIVERS_PATH ---'
+  echo \"LIBGL_DRIVERS_PATH=\${LIBGL_DRIVERS_PATH:-unset}\"
+  echo '--- ldd Hyprland (egl/gbm/gl libs) ---'
+  ldd \$(command -v Hyprland) 2>&1 | grep -iE 'egl|gbm|gl\.so|gallium'
+  echo '--- mesa lib/dri contents (from ldd'\''d libEGL) ---'
+  EGL_LIB=\$(ldd \$(command -v Hyprland) 2>/dev/null | grep -i libEGL | awk '{print \$3}')
+  if [ -n \"\$EGL_LIB\" ]; then
+    MESA_PREFIX=\$(dirname \$(dirname \"\$EGL_LIB\"))
+    echo \"mesa prefix: \$MESA_PREFIX\"
+    ls -la \"\$MESA_PREFIX/lib/dri/\" 2>&1 || echo 'no lib/dri in mesa prefix'
+  fi
   echo '--- hyprland crash report (tail) ---'
   cat \$HOME/.cache/hyprland/hyprlandCrashReport*.txt 2>/dev/null | tail -120 || echo 'no crash report'
 " > "${RESULTS_DIR}/gpu-diagnostics.log" 2>&1 || true
