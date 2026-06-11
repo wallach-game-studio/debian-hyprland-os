@@ -42,7 +42,8 @@ users:
     gecos: Hyprland CI Tester
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
-    lock_passwd: true
+    lock_passwd: false
+    plain_text_passwd: tester
     ssh_authorized_keys:
       - ${VM_PUBKEY}
 
