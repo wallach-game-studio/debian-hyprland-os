@@ -145,15 +145,11 @@ vm_ssh "
   HYPR_REAL=\$(readlink -f \"\$HYPR_BIN\")
   echo \"readlink -f: \$HYPR_REAL\"
   file \"\$HYPR_REAL\" 2>&1
-  echo '--- ldd Hyprland (egl/gbm/gl libs) ---'
-  ldd \"\$HYPR_REAL\" 2>&1 | grep -iE 'egl|gbm|gl\.so|gallium'
-  echo '--- mesa lib/dri contents (from ldd'\''d libEGL) ---'
-  EGL_LIB=\$(ldd \"\$HYPR_REAL\" 2>/dev/null | grep -i libEGL | awk '{print \$3}')
-  if [ -n \"\$EGL_LIB\" ]; then
-    MESA_PREFIX=\$(dirname \$(dirname \"\$EGL_LIB\"))
-    echo \"mesa prefix: \$MESA_PREFIX\"
-    ls -la \"\$MESA_PREFIX/lib/dri/\" 2>&1 || echo 'no lib/dri in mesa prefix'
-  fi
+  echo '--- Hyprland wrapper script contents ---'
+  cat \"\$HYPR_REAL\" 2>&1 | head -100
+  echo '--- system Mesa DRI drivers (/usr/lib) ---'
+  find /usr/lib -maxdepth 4 -iname '*_dri.so' 2>/dev/null | head -20
+  find /usr/lib -maxdepth 3 -type d -iname dri 2>/dev/null
   echo '--- all *_dri.so in /nix/store ---'
   find /nix/store -maxdepth 4 -iname '*_dri.so' 2>/dev/null | head -20
   echo '--- hyprland crash report (tail) ---'

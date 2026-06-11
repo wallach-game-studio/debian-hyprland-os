@@ -197,26 +197,33 @@ install_hyprland() {
 # can't find its driver .so files (kms_swrast_dri.so, virtio_gpu_dri.so,
 # etc.) and falls back to "CDRMRenderer: fail, no gbm support" /
 # "Supported EGL extensions: (0)" even when /dev/dri devices exist.
-# Point LIBGL_DRIVERS_PATH at Mesa's lib/dri in the Nix store via
+#
+# The "mesa" package pulled in by nix-env (as a Hyprland dependency) ships
+# no lib/dri at all, so fall back to the distro's own Mesa DRI drivers
+# (apt: libgl1-mesa-dri / mesa-libgallium), which Mesa's loader can use via
+# its driver-extension interface regardless of which libEGL/libgbm the
+# Hyprland binary itself links against. Export LIBGL_DRIVERS_PATH via
 # /etc/environment, which PAM applies to login/SSH sessions.
 configure_mesa_driver_path() {
-  local MESA_DRI_DIR=""
+  apt_install libgl1-mesa-dri 2>/dev/null || true
+
+  local DRI_DIR=""
   local d
-  for d in /nix/store/*-mesa-*; do
-    if [ -d "${d}/lib/dri" ]; then
-      MESA_DRI_DIR="${d}/lib/dri"
+  for d in /usr/lib/*/dri /usr/lib/dri /nix/store/*-mesa-*/lib/dri; do
+    if [ -d "$d" ] && ls "$d"/*_dri.so >/dev/null 2>&1; then
+      DRI_DIR="$d"
       break
     fi
   done
 
-  if [ -z "$MESA_DRI_DIR" ]; then
-    warn "Could not locate Mesa DRI driver directory in /nix/store"
+  if [ -z "$DRI_DIR" ]; then
+    warn "Could not locate a Mesa DRI driver directory"
     return 0
   fi
 
-  log "Found Mesa DRI drivers at ${MESA_DRI_DIR}"
+  log "Found Mesa DRI drivers at ${DRI_DIR}"
   if ! grep -q "^LIBGL_DRIVERS_PATH=" /etc/environment 2>/dev/null; then
-    echo "LIBGL_DRIVERS_PATH=${MESA_DRI_DIR}" >> /etc/environment
+    echo "LIBGL_DRIVERS_PATH=${DRI_DIR}" >> /etc/environment
   fi
 }
 
