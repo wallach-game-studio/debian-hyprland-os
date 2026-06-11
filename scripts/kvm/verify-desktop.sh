@@ -96,17 +96,6 @@ vm_ssh "
   chmod 700 \$XDG_RUNTIME_DIR
   mkdir -p /tmp/hyprland-test-logs
 
-  # If a libglvnd EGL vendor JSON for Mesa exists in the Nix store, point
-  # libglvnd at it explicitly. A single-user Nix install has no /etc/glvnd
-  # or /run/opengl-driver setup for libglvnd to auto-discover Mesa's EGL
-  # vendor library, which would otherwise yield zero EGL client extensions
-  # ('CDRMRenderer: fail, no gbm support' / 'Supported EGL extensions: (0)').
-  EGL_VENDOR_JSON=\$(find /nix/store -maxdepth 6 -path '*egl_vendor.d*.json' 2>/dev/null | head -1)
-  echo \"EGL_VENDOR_JSON=\${EGL_VENDOR_JSON:-not found}\"
-  if [ -n \"\$EGL_VENDOR_JSON\" ]; then
-    export __EGL_VENDOR_LIBRARY_FILENAMES=\"\$EGL_VENDOR_JSON\"
-  fi
-
   # Start Hyprland in background, let it run for 10s
   Hyprland 2>&1 &
   HYPR_PID=\$!

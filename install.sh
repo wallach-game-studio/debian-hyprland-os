@@ -210,6 +210,15 @@ install_hyprland() {
 # /etc/environment, which PAM applies to login/SSH sessions. Fall back to
 # the distro's Mesa DRI drivers (apt: libgl1-mesa-dri) if the Nix drivers
 # output is unavailable.
+#
+# Even with a matching DRI driver, Hyprland still aborts in CHyprOpenGLImpl
+# with "Supported EGL extensions: (0)" / "CDRMRenderer: fail, no gbm
+# support", because Hyprland's libEGL.so.1 is libglvnd (not Mesa's EGL
+# directly) and a single-user Nix install has none of libglvnd's default
+# vendor-JSON search paths (/run/opengl-driver, /etc/glvnd,
+# /usr/share/glvnd/egl_vendor.d). nixpkgs' mesa.drivers output also ships
+# share/glvnd/egl_vendor.d/50_mesa.json - point libglvnd at it directly via
+# __EGL_VENDOR_LIBRARY_FILENAMES.
 configure_mesa_driver_path() {
   local TARGET_USER="${SUDO_USER:-$USER}"
   local HOME_DIR
@@ -234,12 +243,21 @@ configure_mesa_driver_path() {
 
   if [ -z "$DRI_DIR" ]; then
     warn "Could not locate a Mesa DRI driver directory"
-    return 0
+  else
+    log "Found Mesa DRI drivers at ${DRI_DIR}"
+    sed -i '/^LIBGL_DRIVERS_PATH=/d' /etc/environment 2>/dev/null || true
+    echo "LIBGL_DRIVERS_PATH=${DRI_DIR}" >> /etc/environment
   fi
 
-  log "Found Mesa DRI drivers at ${DRI_DIR}"
-  sed -i '/^LIBGL_DRIVERS_PATH=/d' /etc/environment 2>/dev/null || true
-  echo "LIBGL_DRIVERS_PATH=${DRI_DIR}" >> /etc/environment
+  local EGL_VENDOR_JSON=""
+  EGL_VENDOR_JSON=$(ls "${HOME_DIR}/.nix-profile/share/glvnd/egl_vendor.d/"*.json 2>/dev/null | head -1)
+  if [ -n "$EGL_VENDOR_JSON" ]; then
+    log "Found libglvnd EGL vendor file at ${EGL_VENDOR_JSON}"
+    sed -i '/^__EGL_VENDOR_LIBRARY_FILENAMES=/d' /etc/environment 2>/dev/null || true
+    echo "__EGL_VENDOR_LIBRARY_FILENAMES=${EGL_VENDOR_JSON}" >> /etc/environment
+  else
+    warn "Could not locate a libglvnd EGL vendor JSON for Mesa"
+  fi
 }
 
 # ---------------------------------------------------------------------------
