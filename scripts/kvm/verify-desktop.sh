@@ -141,6 +141,15 @@ vm_ssh "
   if [ -n \"\${LIBGL_DRIVERS_PATH:-}\" ]; then
     ls -la \"\$LIBGL_DRIVERS_PATH\" 2>&1 | head -30
   fi
+  echo '--- eglinfo (system Mesa, surfaceless/llvmpipe) ---'
+  sudo apt-get install -y -qq mesa-utils-extra > /dev/null 2>&1 || true
+  if command -v eglinfo >/dev/null 2>&1; then
+    EGL_PLATFORM=surfaceless LIBGL_ALWAYS_SOFTWARE=1 eglinfo 2>&1 | head -30
+    echo '--- eglinfo (system Mesa, gbm platform) ---'
+    EGL_PLATFORM=gbm LIBGL_ALWAYS_SOFTWARE=1 eglinfo 2>&1 | head -30
+  else
+    echo 'eglinfo not available'
+  fi
   echo '--- Hyprland binary type ---'
   HYPR_BIN=\$(command -v Hyprland)
   echo \"command -v Hyprland: \$HYPR_BIN\"
