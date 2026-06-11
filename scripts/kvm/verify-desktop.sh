@@ -88,6 +88,9 @@ vm_ssh "
   export WLR_BACKENDS=headless
   export WLR_RENDERER=pixman
   export HYPRLAND_NO_RT=1
+  export LIBGL_DEBUG=verbose
+  export EGL_LOG_LEVEL=debug
+  export MESA_DEBUG=1
   export XDG_RUNTIME_DIR=/tmp/xdg-runtime-\$USER
   mkdir -p \$XDG_RUNTIME_DIR
   chmod 700 \$XDG_RUNTIME_DIR
