@@ -96,6 +96,17 @@ vm_ssh "
   chmod 700 \$XDG_RUNTIME_DIR
   mkdir -p /tmp/hyprland-test-logs
 
+  # If a libglvnd EGL vendor JSON for Mesa exists in the Nix store, point
+  # libglvnd at it explicitly. A single-user Nix install has no /etc/glvnd
+  # or /run/opengl-driver setup for libglvnd to auto-discover Mesa's EGL
+  # vendor library, which would otherwise yield zero EGL client extensions
+  # ('CDRMRenderer: fail, no gbm support' / 'Supported EGL extensions: (0)').
+  EGL_VENDOR_JSON=\$(find /nix/store -maxdepth 6 -path '*egl_vendor.d*.json' 2>/dev/null | head -1)
+  echo \"EGL_VENDOR_JSON=\${EGL_VENDOR_JSON:-not found}\"
+  if [ -n \"\$EGL_VENDOR_JSON\" ]; then
+    export __EGL_VENDOR_LIBRARY_FILENAMES=\"\$EGL_VENDOR_JSON\"
+  fi
+
   # Start Hyprland in background, let it run for 10s
   Hyprland 2>&1 &
   HYPR_PID=\$!
@@ -141,15 +152,6 @@ vm_ssh "
   if [ -n \"\${LIBGL_DRIVERS_PATH:-}\" ]; then
     ls -la \"\$LIBGL_DRIVERS_PATH\" 2>&1 | head -30
   fi
-  echo '--- eglinfo (system Mesa, surfaceless/llvmpipe) ---'
-  sudo apt-get install -y -qq mesa-utils-extra > /dev/null 2>&1 || true
-  if command -v eglinfo >/dev/null 2>&1; then
-    EGL_PLATFORM=surfaceless LIBGL_ALWAYS_SOFTWARE=1 eglinfo 2>&1 | head -30
-    echo '--- eglinfo (system Mesa, gbm platform) ---'
-    EGL_PLATFORM=gbm LIBGL_ALWAYS_SOFTWARE=1 eglinfo 2>&1 | head -30
-  else
-    echo 'eglinfo not available'
-  fi
   echo '--- Hyprland binary type ---'
   HYPR_BIN=\$(command -v Hyprland)
   echo \"command -v Hyprland: \$HYPR_BIN\"
@@ -157,6 +159,40 @@ vm_ssh "
   HYPR_REAL=\$(readlink -f \"\$HYPR_BIN\")
   echo \"readlink -f: \$HYPR_REAL\"
   file \"\$HYPR_REAL\" 2>&1
+  HYPR_WRAPPED=\$(dirname \"\$HYPR_REAL\")/.Hyprland-wrapped
+  echo '--- .Hyprland-wrapped EGL/GBM/GL library deps ---'
+  ldd \"\$HYPR_WRAPPED\" 2>&1 | grep -iE 'egl|gbm|glx|libgl|glvnd' || echo 'ldd: nothing matched'
+  echo '--- libEGL strings (platform/glvnd support) ---'
+  EGL_LIB=\$(ldd \"\$HYPR_WRAPPED\" 2>/dev/null | grep -i 'libEGL\\.so' | awk '{print \$3}' | head -1)
+  echo \"libEGL path: \${EGL_LIB:-not found}\"
+  if [ -n \"\$EGL_LIB\" ] && [ -f \"\$EGL_LIB\" ]; then
+    strings \"\$EGL_LIB\" | grep -iE 'platform_(gbm|drm|wayland|x11|surfaceless)|glvnd|egl_vendor' | sort -u
+  fi
+  echo '--- glvnd EGL vendor JSON files in /nix/store ---'
+  find /nix/store -maxdepth 6 -path '*egl_vendor.d*.json' 2>/dev/null | head -10
+  echo '--- __EGL_VENDOR env (in SSH session) ---'
+  echo \"__EGL_VENDOR_LIBRARY_DIRS=\${__EGL_VENDOR_LIBRARY_DIRS:-unset}\"
+  echo \"__EGL_VENDOR_LIBRARY_FILENAMES=\${__EGL_VENDOR_LIBRARY_FILENAMES:-unset}\"
+  echo '--- eglinfo (system Mesa, surfaceless/llvmpipe) ---'
+  sudo apt-get install -y -qq mesa-utils-extra > /dev/null 2>&1 || true
+  if command -v eglinfo >/dev/null 2>&1; then
+    EGL_PLATFORM=surfaceless LIBGL_ALWAYS_SOFTWARE=1 eglinfo 2>&1 | head -8
+    echo '--- eglinfo (system Mesa, gbm platform) ---'
+    EGL_PLATFORM=gbm LIBGL_ALWAYS_SOFTWARE=1 eglinfo 2>&1 | head -8
+  else
+    echo 'eglinfo not available'
+  fi
+  echo '--- eglinfo (nix mesa, matches Hyprland) ---'
+  . \$HOME/.nix-profile/etc/profile.d/nix.sh 2>/dev/null || true
+  nix-env -f 'https://channels.nixos.org/nixos-24.11/nixexprs.tar.xz' -iA mesa-demos > /dev/null 2>&1 || echo 'mesa-demos install failed'
+  if [ -x \$HOME/.nix-profile/bin/eglinfo ]; then
+    echo '  -- surfaceless --'
+    EGL_PLATFORM=surfaceless LIBGL_ALWAYS_SOFTWARE=1 \$HOME/.nix-profile/bin/eglinfo 2>&1 | head -10
+    echo '  -- gbm --'
+    EGL_PLATFORM=gbm LIBGL_ALWAYS_SOFTWARE=1 \$HOME/.nix-profile/bin/eglinfo 2>&1 | head -20
+  else
+    echo 'nix eglinfo not available'
+  fi
   echo '--- Hyprland wrapper script contents ---'
   cat \"\$HYPR_REAL\" 2>&1 | head -100
   echo '--- system Mesa DRI drivers (/usr/lib) ---'
@@ -165,7 +201,7 @@ vm_ssh "
   echo '--- all *_dri.so in /nix/store ---'
   find /nix/store -maxdepth 4 -iname '*_dri.so' 2>/dev/null | head -20
   echo '--- hyprland crash report (tail) ---'
-  cat \$HOME/.cache/hyprland/hyprlandCrashReport*.txt 2>/dev/null | tail -120 || echo 'no crash report'
+  cat \$HOME/.cache/hyprland/hyprlandCrashReport*.txt 2>/dev/null | tail -150 || echo 'no crash report'
 " > "${RESULTS_DIR}/gpu-diagnostics.log" 2>&1 || true
 
 # Retrieve Hyprland status
