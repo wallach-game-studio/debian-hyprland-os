@@ -199,17 +199,33 @@ install_hyprland() {
 # "Supported EGL extensions: (0)" even when /dev/dri devices exist.
 #
 # The "mesa" package pulled in by nix-env (as a Hyprland dependency) ships
-# no lib/dri at all, so fall back to the distro's own Mesa DRI drivers
-# (apt: libgl1-mesa-dri / mesa-libgallium), which Mesa's loader can use via
-# its driver-extension interface regardless of which libEGL/libgbm the
-# Hyprland binary itself links against. Export LIBGL_DRIVERS_PATH via
-# /etc/environment, which PAM applies to login/SSH sessions.
+# no lib/dri at all. Hyprland's libEGL/libgbm come from nixpkgs' mesa
+# (24.2.8), a different version than the distro's Mesa (e.g. 25.2.8 on
+# Ubuntu 24.04) - mixing that 24.2.8 EGL/GBM loader with a 25.2.8 DRI driver
+# blob produces an empty EGL extension list and Hyprland aborts in
+# CHyprOpenGLImpl. Install nixpkgs' own mesa.drivers output (the DRI/Gallium
+# drivers built against the same Mesa version as Hyprland's libEGL/libgbm -
+# what NixOS's hardware.opengl module normally provides via
+# /run/opengl-driver/lib/dri) and point LIBGL_DRIVERS_PATH at it via
+# /etc/environment, which PAM applies to login/SSH sessions. Fall back to
+# the distro's Mesa DRI drivers (apt: libgl1-mesa-dri) if the Nix drivers
+# output is unavailable.
 configure_mesa_driver_path() {
+  local TARGET_USER="${SUDO_USER:-$USER}"
+  local HOME_DIR
+  HOME_DIR=$(getent passwd "$TARGET_USER" | cut -d: -f6)
+  local NIXPKGS_URL="https://channels.nixos.org/nixos-24.11/nixexprs.tar.xz"
+
+  log "Fetching Mesa DRI drivers from cache.nixos.org (version-matched to Hyprland)..."
+  sudo -u "$TARGET_USER" bash -c \
+    ". '${HOME_DIR}/.nix-profile/etc/profile.d/nix.sh' && nix-env -f '${NIXPKGS_URL}' -iA mesa.drivers" \
+    2>/dev/null || warn "Could not install nixpkgs mesa.drivers"
+
   apt_install libgl1-mesa-dri 2>/dev/null || true
 
   local DRI_DIR=""
   local d
-  for d in /usr/lib/*/dri /usr/lib/dri /nix/store/*-mesa-*/lib/dri; do
+  for d in "${HOME_DIR}/.nix-profile/lib/dri" /nix/store/*-mesa-*-drivers/lib/dri /usr/lib/*/dri /usr/lib/dri; do
     if [ -d "$d" ] && ls "$d"/*_dri.so >/dev/null 2>&1; then
       DRI_DIR="$d"
       break
@@ -222,9 +238,8 @@ configure_mesa_driver_path() {
   fi
 
   log "Found Mesa DRI drivers at ${DRI_DIR}"
-  if ! grep -q "^LIBGL_DRIVERS_PATH=" /etc/environment 2>/dev/null; then
-    echo "LIBGL_DRIVERS_PATH=${DRI_DIR}" >> /etc/environment
-  fi
+  sed -i '/^LIBGL_DRIVERS_PATH=/d' /etc/environment 2>/dev/null || true
+  echo "LIBGL_DRIVERS_PATH=${DRI_DIR}" >> /etc/environment
 }
 
 # ---------------------------------------------------------------------------
