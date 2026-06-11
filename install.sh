@@ -101,7 +101,15 @@ install_base() {
     pipewire pipewire-pulse \
     wireplumber \
     policykit-1 \
-    xwayland
+    xwayland \
+    seatd
+
+  # Hyprland (via aquamarine/libseat) needs an active seat to open
+  # DRM/input devices. Without systemd-logind (e.g. no session/no VT,
+  # such as over SSH), libseat falls back to its 'builtin' backend, which
+  # can't open any devices and aquamarine fails with "no GPUs"/"could not
+  # start". seatd provides a seat without requiring logind or a VT.
+  systemctl enable --now seatd 2>/dev/null || true
 }
 
 # ---------------------------------------------------------------------------
@@ -141,9 +149,10 @@ install_hyprland() {
   done
 
   # Hyprland/aquamarine needs a DRM device (/dev/dri/cardN) and a render
-  # node (/dev/dri/renderD*) for its GBM-based allocator.
-  log "Granting ${TARGET_USER} access to DRM/input devices..."
-  usermod -aG video,render,input "$TARGET_USER" 2>/dev/null || true
+  # node (/dev/dri/renderD*) for its GBM-based allocator, plus the 'seat'
+  # group for libseat to talk to seatd.
+  log "Granting ${TARGET_USER} access to DRM/input/seat devices..."
+  usermod -aG video,render,input,seat "$TARGET_USER" 2>/dev/null || true
 
   # `modprobe` lives in kmod, which minimal/cloud images don't always have.
   apt_install kmod

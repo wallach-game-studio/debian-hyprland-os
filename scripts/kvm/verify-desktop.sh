@@ -125,8 +125,11 @@ vm_ssh "
   modinfo vgem 2>&1 | head -5
   echo '--- id ---'
   id
-  echo '--- hyprland crash report ---'
-  cat \$HOME/.cache/hyprland/hyprlandCrashReport*.txt 2>/dev/null | head -150 || echo 'no crash report'
+  echo '--- seatd ---'
+  systemctl is-active seatd 2>&1
+  ls -la /run/seatd.sock 2>&1
+  echo '--- hyprland crash report (tail) ---'
+  cat \$HOME/.cache/hyprland/hyprlandCrashReport*.txt 2>/dev/null | tail -120 || echo 'no crash report'
 " > "${RESULTS_DIR}/gpu-diagnostics.log" 2>&1 || true
 
 # Retrieve Hyprland status
