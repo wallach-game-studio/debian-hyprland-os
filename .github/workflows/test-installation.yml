@@ -139,42 +139,43 @@ jobs:
             exit 0
           fi
 
-          echo "==> Starting web VNC tunnel for ${{ github.event.inputs.manual_test_minutes }} minutes..."
-          MANUAL_MINUTES=${{ github.event.inputs.manual_test_minutes }}
+           echo "==> Starting web VNC tunnel for ${{ github.event.inputs.manual_test_minutes }} minutes..."
+           MANUAL_MINUTES=${{ github.event.inputs.manual_test_minutes }}
 
-          # Install noVNC + websockify
-          sudo apt-get install -y -qq novnc python3-websockify 2>/dev/null || pip3 install --quiet websockify 2>/dev/null || true
-          git clone --depth 1 https://github.com/novnc/noVNC.git /tmp/novnc 2>/dev/null || true
+           # Install noVNC + websockify
+           sudo apt-get install -y -qq novnc python3-websockify 2>/dev/null || pip3 install --quiet websockify 2>/dev/null || true
+           git clone --depth 1 https://github.com/novnc/noVNC.git /tmp/novnc 2>/dev/null || true
 
-          # Start websockify on port 6080 -> VNC port 5900
-          websockify --web /tmp/novnc 6080 127.0.0.1:5900 &
-          WS_PID=$!
-          echo "Websockify PID: $WS_PID"
+           # Start websockify on port 6080 -> VNC port 5900
+           websockify --web /tmp/novnc 6080 127.0.0.1:5900 &
+           WS_PID=$!
+           echo "Websockify PID: $WS_PID"
 
-          # Give it a moment to start
-          sleep 3
+           # Give it a moment to start
+           sleep 3
 
-          # Expose via localhost.run (free SSH tunnel, no registration)
-          echo "--> Establishing public tunnel via localhost.run..."
-          TUNNEL_LOG="/tmp/kvm-test/${{ matrix.distro }}/tunnel.log"
-          ssh -o StrictHostKeyChecking=no \
-              -o ServerAliveInterval=30 \
-              -o ExitOnForwardFailure=yes \
-              -o StrictHostKeyChecking=accept-new \
-              -tt \
-              -R 80:localhost:6080 \
-              nokey@localhost.run > "$TUNNEL_LOG" 2>&1 &
-          TUNNEL_PID=$!
+           # Install cloudflared if not already present
+           if ! command -v cloudflared &>/dev/null; then
+             curl -fsSL -o /tmp/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+             chmod +x /tmp/cloudflared
+             sudo mv /tmp/cloudflared /usr/local/bin/cloudflared
+           fi
 
-          # Wait for tunnel URL to appear in the log
-          TUNNEL_URL=""
-          for i in $(seq 1 15); do
-            sleep 2
-            TUNNEL_URL=$(grep -oP 'https?://[a-zA-Z0-9.-]+\.localhost\.run' "$TUNNEL_LOG" 2>/dev/null | head -1)
-            if [ -n "$TUNNEL_URL" ]; then
-              break
-            fi
-          done
+           # Expose via cloudflared quick tunnel (no account/config needed)
+           echo "--> Establishing public web URL via cloudflared..."
+           TUNNEL_LOG="/tmp/kvm-test/${{ matrix.distro }}/tunnel.log"
+           cloudflared tunnel --url http://localhost:6080 > "$TUNNEL_LOG" 2>&1 &
+           TUNNEL_PID=$!
+
+           # Poll the log for the trycloudflare.com URL (cloudflared prints it once the tunnel is live)
+           TUNNEL_URL=""
+           for i in $(seq 1 30); do
+             TUNNEL_URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$TUNNEL_LOG" | head -1 || true)
+             [ -n "$TUNNEL_URL" ] && break
+             sleep 1
+           done
+
+
 
           echo ""
           echo "============================================"
