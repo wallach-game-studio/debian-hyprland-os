@@ -140,9 +140,25 @@ install_hyprland() {
     ln -sf "${HOME_DIR}/.nix-profile/bin/${bin}" "/usr/local/bin/${bin}"
   done
 
-  # Hyprland/aquamarine needs access to a DRM render node (/dev/dri/renderD*).
-  log "Granting ${TARGET_USER} access to DRM devices..."
-  usermod -aG video,render "$TARGET_USER" 2>/dev/null || true
+  # Hyprland/aquamarine needs a DRM device (/dev/dri/cardN) and a render
+  # node (/dev/dri/renderD*) for its GBM-based allocator.
+  log "Granting ${TARGET_USER} access to DRM/input devices..."
+  usermod -aG video,render,input "$TARGET_USER" 2>/dev/null || true
+
+  # `modprobe` lives in kmod, which minimal/cloud images don't always have.
+  apt_install kmod
+
+  # Cloud kernels often don't auto-load the GPU driver. virtio_gpu provides
+  # /dev/dri/cardN (KMS/scanout) on QEMU's virtio-vga; load it if missing.
+  if ! ls /dev/dri/card* >/dev/null 2>&1; then
+    log "No DRM device found — loading virtio_gpu..."
+    if modprobe virtio_gpu 2>/dev/null; then
+      udevadm settle
+      echo virtio_gpu > /etc/modules-load.d/virtio_gpu.conf
+    else
+      warn "virtio_gpu unavailable"
+    fi
+  fi
 
   # Aquamarine's headless backend is mandatory and requires a render node.
   # Real GPUs already provide one; VMs without a GPU (e.g. virtio-vga

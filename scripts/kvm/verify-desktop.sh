@@ -119,6 +119,8 @@ vm_ssh "
   ls -la /dev/dri/ 2>&1 || echo 'no /dev/dri'
   echo '--- lsmod (drm/vgem/virtio) ---'
   lsmod | grep -iE 'drm|vgem|virtio_gpu' || echo 'none loaded'
+  echo '--- modinfo virtio_gpu ---'
+  modinfo virtio_gpu 2>&1 | head -5
   echo '--- modinfo vgem ---'
   modinfo vgem 2>&1 | head -5
   echo '--- id ---'
