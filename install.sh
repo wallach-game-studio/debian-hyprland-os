@@ -169,17 +169,22 @@ install_hyprland() {
     fi
   fi
 
-  # Aquamarine's headless backend is mandatory and requires a render node.
-  # Real GPUs already provide one; VMs without a GPU (e.g. virtio-vga
-  # without virgl) don't, so fall back to vgem (a software render node).
-  if ! ls /dev/dri/renderD* >/dev/null 2>&1; then
-    log "No DRM render node found — loading vgem for headless rendering..."
-    if modprobe vgem 2>/dev/null; then
-      udevadm settle
-      echo vgem > /etc/modules-load.d/vgem.conf
-    else
-      warn "vgem unavailable; Hyprland may fail to start without a GPU"
-    fi
+  # Aquamarine's renderer needs a render node with working GBM/EGL support.
+  # virtio_gpu's render node only works if the host enables virgl/3D, which
+  # CI VMs typically don't ("CDRMRenderer: fail, no gbm support"). vgem (a
+  # software render-only DRM device, paired with Mesa's kms_swrast driver)
+  # gives aquamarine a working renderer regardless of host 3D support, so
+  # load it even when virtio_gpu already provides a (non-functional) one.
+  log "Ensuring vgem (software render node) is available..."
+  if ! modprobe vgem 2>/dev/null; then
+    apt_install "linux-modules-extra-$(uname -r)" 2>/dev/null || true
+    modprobe vgem 2>/dev/null || true
+  fi
+  if lsmod | grep -q '^vgem'; then
+    udevadm settle
+    echo vgem > /etc/modules-load.d/vgem.conf
+  else
+    warn "vgem unavailable; Hyprland may fail to start without GPU rendering support"
   fi
 }
 
@@ -378,19 +383,18 @@ NVNCONF
 }
 
 # ---------------------------------------------------------------------------
-# Phase 1: virtio-gpu software rendering fallback (CI/VMs without virgl)
+# Phase 1: headless GPU rendering fallback (CI/VMs without virgl)
 # ---------------------------------------------------------------------------
-# QEMU's virtio-gpu without host-side virgl/3D acceleration provides a DRM
-# render node, but Mesa's virtio_gpu driver can't satisfy aquamarine's GBM
-# allocator on it ("CDRMRenderer: fail, no gbm support" -> empty EGL
-# extension list -> CBackend::create() failed!). Forcing Mesa's software
-# KMS driver lets aquamarine's renderer initialize on the same render node.
+# Aquamarine requires at least one GPU with an output/connector by default.
+# vgem (loaded above as a render-only fallback) has no display output, so
+# aquamarine must be told to lift that requirement via AQ_NO_KMS_REQUIREMENT.
+# See: https://wiki.hypr.land/Configuring/Advanced-and-Cool/Virtual-GPU/
 configure_virtio_gpu_fallback() {
-  if ! lspci -nn 2>/dev/null | grep -qi "virtio.*gpu"; then
+  if ! lsmod | grep -q '^vgem' && ! lspci -nn 2>/dev/null | grep -qi "virtio.*gpu"; then
     return 0
   fi
 
-  log "virtio-gpu detected (no host 3D/virgl) — forcing Mesa software rendering..."
+  log "Configuring aquamarine for headless/virtual GPU rendering..."
 
   local TARGET_USER="${SUDO_USER:-$USER}"
   local HOME_DIR
@@ -399,16 +403,15 @@ configure_virtio_gpu_fallback() {
   mkdir -p "$HYPR_CONFIG"
 
   cat > "${HYPR_CONFIG}/virtio-gpu.conf" << 'VIRTIOCONF'
-# virtio-gpu software rendering fallback (auto-generated)
-# See: https://docs.mesa3d.org/envvars.html (MESA_LOADER_DRIVER_OVERRIDE)
+# Headless/virtual GPU rendering fallback (auto-generated)
+# See: https://wiki.hypr.land/Configuring/Advanced-and-Cool/Virtual-GPU/
 
-env = MESA_LOADER_DRIVER_OVERRIDE,kms_swrast
-env = LIBGL_ALWAYS_SOFTWARE,1
+env = AQ_NO_KMS_REQUIREMENT,1
 VIRTIOCONF
 
   if [ -f "${HYPR_CONFIG}/hyprland.conf" ]; then
     grep -q "source = virtio-gpu.conf" "${HYPR_CONFIG}/hyprland.conf" 2>/dev/null || \
-      echo -e "\n# virtio-gpu fallback (auto-generated)\nsource = virtio-gpu.conf" >> "${HYPR_CONFIG}/hyprland.conf"
+      echo -e "\n# Headless/virtual GPU fallback (auto-generated)\nsource = virtio-gpu.conf" >> "${HYPR_CONFIG}/hyprland.conf"
   fi
   chown -R "${TARGET_USER}:${TARGET_USER}" "$HYPR_CONFIG"
 }
