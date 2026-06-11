@@ -378,6 +378,42 @@ NVNCONF
 }
 
 # ---------------------------------------------------------------------------
+# Phase 1: virtio-gpu software rendering fallback (CI/VMs without virgl)
+# ---------------------------------------------------------------------------
+# QEMU's virtio-gpu without host-side virgl/3D acceleration provides a DRM
+# render node, but Mesa's virtio_gpu driver can't satisfy aquamarine's GBM
+# allocator on it ("CDRMRenderer: fail, no gbm support" -> empty EGL
+# extension list -> CBackend::create() failed!). Forcing Mesa's software
+# KMS driver lets aquamarine's renderer initialize on the same render node.
+configure_virtio_gpu_fallback() {
+  if ! lspci -nn 2>/dev/null | grep -qi "virtio.*gpu"; then
+    return 0
+  fi
+
+  log "virtio-gpu detected (no host 3D/virgl) — forcing Mesa software rendering..."
+
+  local TARGET_USER="${SUDO_USER:-$USER}"
+  local HOME_DIR
+  HOME_DIR=$(getent passwd "$TARGET_USER" | cut -d: -f6)
+  local HYPR_CONFIG="${HOME_DIR}/.config/hypr"
+  mkdir -p "$HYPR_CONFIG"
+
+  cat > "${HYPR_CONFIG}/virtio-gpu.conf" << 'VIRTIOCONF'
+# virtio-gpu software rendering fallback (auto-generated)
+# See: https://docs.mesa3d.org/envvars.html (MESA_LOADER_DRIVER_OVERRIDE)
+
+env = MESA_LOADER_DRIVER_OVERRIDE,kms_swrast
+env = LIBGL_ALWAYS_SOFTWARE,1
+VIRTIOCONF
+
+  if [ -f "${HYPR_CONFIG}/hyprland.conf" ]; then
+    grep -q "source = virtio-gpu.conf" "${HYPR_CONFIG}/hyprland.conf" 2>/dev/null || \
+      echo -e "\n# virtio-gpu fallback (auto-generated)\nsource = virtio-gpu.conf" >> "${HYPR_CONFIG}/hyprland.conf"
+  fi
+  chown -R "${TARGET_USER}:${TARGET_USER}" "$HYPR_CONFIG"
+}
+
+# ---------------------------------------------------------------------------
 # Verify installation
 # ---------------------------------------------------------------------------
 verify_install() {
@@ -418,6 +454,7 @@ main() {
   install_components
   install_configs
   install_nvidia_if_present
+  configure_virtio_gpu_fallback
   verify_install
 
   echo
