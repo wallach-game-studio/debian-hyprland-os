@@ -112,6 +112,21 @@ vm_ssh "
   fi
 " 2>&1 | tee "${RESULTS_DIR}/hyprland-start.log" || true
 
+# --- GPU/DRM diagnostics (helps debug headless backend failures) ---
+echo "--> Collecting GPU/DRM diagnostics..."
+vm_ssh "
+  echo '--- /dev/dri ---'
+  ls -la /dev/dri/ 2>&1 || echo 'no /dev/dri'
+  echo '--- lsmod (drm/vgem/virtio) ---'
+  lsmod | grep -iE 'drm|vgem|virtio_gpu' || echo 'none loaded'
+  echo '--- modinfo vgem ---'
+  modinfo vgem 2>&1 | head -5
+  echo '--- id ---'
+  id
+  echo '--- hyprland crash report ---'
+  cat \$HOME/.cache/hyprland/hyprlandCrashReport*.txt 2>/dev/null | head -150 || echo 'no crash report'
+" > "${RESULTS_DIR}/gpu-diagnostics.log" 2>&1 || true
+
 # Retrieve Hyprland status
 vm_ssh "cat /tmp/hypr-status.txt 2>/dev/null || echo 'HYPRLAND_RUNNING=unknown'" \
   >> "$VERIFY_LOG" 2>/dev/null || true
