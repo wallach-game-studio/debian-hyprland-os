@@ -189,6 +189,38 @@ install_hyprland() {
 }
 
 # ---------------------------------------------------------------------------
+# Phase 1: Mesa DRI driver path for nix-env Hyprland on non-NixOS
+# ---------------------------------------------------------------------------
+# On NixOS, /run/opengl-driver/lib/dri is a system-wide symlink to Mesa's DRI
+# drivers, set up by the OpenGL system module. A single-user `nix-env`
+# install on Debian/Ubuntu has no such symlink, so Mesa's GBM/EGL loader
+# can't find its driver .so files (kms_swrast_dri.so, virtio_gpu_dri.so,
+# etc.) and falls back to "CDRMRenderer: fail, no gbm support" /
+# "Supported EGL extensions: (0)" even when /dev/dri devices exist.
+# Point LIBGL_DRIVERS_PATH at Mesa's lib/dri in the Nix store via
+# /etc/environment, which PAM applies to login/SSH sessions.
+configure_mesa_driver_path() {
+  local MESA_DRI_DIR=""
+  local d
+  for d in /nix/store/*-mesa-*; do
+    if [ -d "${d}/lib/dri" ]; then
+      MESA_DRI_DIR="${d}/lib/dri"
+      break
+    fi
+  done
+
+  if [ -z "$MESA_DRI_DIR" ]; then
+    warn "Could not locate Mesa DRI driver directory in /nix/store"
+    return 0
+  fi
+
+  log "Found Mesa DRI drivers at ${MESA_DRI_DIR}"
+  if ! grep -q "^LIBGL_DRIVERS_PATH=" /etc/environment 2>/dev/null; then
+    echo "LIBGL_DRIVERS_PATH=${MESA_DRI_DIR}" >> /etc/environment
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Phase 1: Core components (issues #3-#6)
 # ---------------------------------------------------------------------------
 install_components() {
@@ -454,6 +486,7 @@ main() {
   detect_distro
   install_base
   install_hyprland
+  configure_mesa_driver_path
   install_components
   install_configs
   install_nvidia_if_present

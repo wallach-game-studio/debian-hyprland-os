@@ -131,17 +131,31 @@ vm_ssh "
   echo '--- nix mesa / DRI drivers ---'
   ls -la \$HOME/.nix-profile/lib/dri/ 2>&1 || echo 'no dri dir in nix-profile'
   find /nix/store -maxdepth 1 -iname '*mesa*' 2>/dev/null
-  echo '--- LIBGL_DRIVERS_PATH ---'
+  echo '--- /etc/environment ---'
+  cat /etc/environment 2>&1 || echo 'no /etc/environment'
+  echo '--- LIBGL_DRIVERS_PATH (in SSH session) ---'
   echo \"LIBGL_DRIVERS_PATH=\${LIBGL_DRIVERS_PATH:-unset}\"
+  if [ -n \"\${LIBGL_DRIVERS_PATH:-}\" ]; then
+    ls -la \"\$LIBGL_DRIVERS_PATH\" 2>&1 | head -30
+  fi
+  echo '--- Hyprland binary type ---'
+  HYPR_BIN=\$(command -v Hyprland)
+  echo \"command -v Hyprland: \$HYPR_BIN\"
+  file \"\$HYPR_BIN\" 2>&1
+  HYPR_REAL=\$(readlink -f \"\$HYPR_BIN\")
+  echo \"readlink -f: \$HYPR_REAL\"
+  file \"\$HYPR_REAL\" 2>&1
   echo '--- ldd Hyprland (egl/gbm/gl libs) ---'
-  ldd \$(command -v Hyprland) 2>&1 | grep -iE 'egl|gbm|gl\.so|gallium'
+  ldd \"\$HYPR_REAL\" 2>&1 | grep -iE 'egl|gbm|gl\.so|gallium'
   echo '--- mesa lib/dri contents (from ldd'\''d libEGL) ---'
-  EGL_LIB=\$(ldd \$(command -v Hyprland) 2>/dev/null | grep -i libEGL | awk '{print \$3}')
+  EGL_LIB=\$(ldd \"\$HYPR_REAL\" 2>/dev/null | grep -i libEGL | awk '{print \$3}')
   if [ -n \"\$EGL_LIB\" ]; then
     MESA_PREFIX=\$(dirname \$(dirname \"\$EGL_LIB\"))
     echo \"mesa prefix: \$MESA_PREFIX\"
     ls -la \"\$MESA_PREFIX/lib/dri/\" 2>&1 || echo 'no lib/dri in mesa prefix'
   fi
+  echo '--- all *_dri.so in /nix/store ---'
+  find /nix/store -maxdepth 4 -iname '*_dri.so' 2>/dev/null | head -20
   echo '--- hyprland crash report (tail) ---'
   cat \$HOME/.cache/hyprland/hyprlandCrashReport*.txt 2>/dev/null | tail -120 || echo 'no crash report'
 " > "${RESULTS_DIR}/gpu-diagnostics.log" 2>&1 || true
