@@ -95,6 +95,7 @@ install_base() {
     curl wget git ca-certificates gnupg \
     build-essential \
     software-properties-common \
+    xz-utils \
     xdg-utils \
     dbus \
     pipewire pipewire-pulse \
@@ -106,99 +107,38 @@ install_base() {
 # ---------------------------------------------------------------------------
 # Phase 1: Hyprland (issue #1 / #2)
 # ---------------------------------------------------------------------------
+# Neither Debian 12 nor Ubuntu 24.04 ship a libwayland new enough for any
+# Hyprland release built against the hypr* ecosystem (Hyprland >= 0.36
+# requires wayland-server >= 1.22.90, but Debian 12 has 1.21.0 and Ubuntu
+# 24.04 has 1.22.0), so apt and from-source builds are both dead ends.
+# Instead, install a prebuilt Hyprland from nixpkgs (nixos-24.11), which is
+# fully cached on cache.nixos.org and requires no local compilation.
 install_hyprland() {
-  log "Installing Hyprland..."
+  log "Installing Hyprland from nixpkgs (prebuilt binaries, no compilation)..."
 
-  case "${DISTRO_ID}:${DISTRO_VERSION}" in
-    ubuntu:24.04)
-      apt_install hyprland
-      ;;
-    debian:12)
-      warn "Hyprland not in Debian 12 stable repos, using upstream script..."
-      install_hyprland_from_source_debian12 || warn "Source build failed — continuing with available packages"
-      ;;
-    *)
-      warn "Unknown distro - attempting generic apt install..."
-      apt_install hyprland || warn "Hyprland not found in repos, manual install needed"
-      ;;
-  esac
-}
+  local TARGET_USER="${SUDO_USER:-$USER}"
+  local HOME_DIR
+  HOME_DIR=$(getent passwd "$TARGET_USER" | cut -d: -f6)
+  local NIXPKGS_URL="https://channels.nixos.org/nixos-24.11/nixexprs.tar.xz"
 
-install_hyprland_from_source_debian12() {
-  grep -q "contrib" /etc/apt/sources.list 2>/dev/null || \
-    grep -q "contrib" /etc/apt/sources.list.d/*.list 2>/dev/null || \
-    sed -i 's/main$/main contrib non-free non-free-firmware/' /etc/apt/sources.list 2>/dev/null || true
-  apt_update
-
-  apt_install \
-    meson cmake ninja-build \
-    libwayland-dev libwayland-egl-backend-dev \
-    libxkbcommon-dev libinput-dev \
-    libudev-dev libpixman-1-dev \
-    libseatd-dev libvulkan-dev libvulkan-volk-dev \
-    libegl-dev libgles-dev \
-    libxcb-dri3-dev libxcb-present-dev \
-    glslang-tools \
-    libdisplay-info-dev \
-    libtomlplusplus-dev \
-    hyprutils-dev hyprlang-dev \
-    hyprwayland-scanner \
-    aquamarine-dev \
-    libxcb-errors-dev \
-    libxcb-icccm4-dev \
-    libxcb-render-util0-dev \
-    hyprcursor-dev \
-    libhyprcursor-dev \
-    hyprgraphics-dev
-
-  BUILD_DIR="/tmp/hyprland-build"
-  HYPRLAND_REPO="https://github.com/hyprwm/Hyprland.git"
-  HYPRLAND_TAG="v0.47.2"
-
-  log "Cloning Hyprland ${HYPRLAND_TAG} (this may take a while)..."
-  mkdir -p "$BUILD_DIR"
-  git clone --depth 1 --branch "$HYPRLAND_TAG" "$HYPRLAND_REPO" "${BUILD_DIR}/Hyprland" 2>/dev/null || {
-    warn "Git clone failed, attempting to use system packages only"
-    warn "Install Hyprland manually from: https://github.com/hyprwm/Hyprland/releases"
-    return 1
-  }
-
-  cd "${BUILD_DIR}/Hyprland"
-  log "Building Hyprland..."
-  set +e
-  cmake --no-warn-unused-cli \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX=/usr \
-    -B build 2>&1 | tail -5
-  local RC_BUILD=${PIPESTATUS[0]}
-  set -e
-  if [ "$RC_BUILD" -ne 0 ]; then
-    warn "CMake configure failed (exit $RC_BUILD)"
-    cd /
-    rm -rf "$BUILD_DIR"
-    return 1
+  if [ ! -d /nix ]; then
+    mkdir -m 0755 /nix
+    chown "${TARGET_USER}:${TARGET_USER}" /nix
   fi
 
-  set +e
-  cmake --build build -j "$(nproc)" 2>&1 | tail -5
-  RC_BUILD=${PIPESTATUS[0]}
-  set -e
-  if [ "$RC_BUILD" -ne 0 ]; then
-    warn "CMake build failed (exit $RC_BUILD)"
-    cd /
-    rm -rf "$BUILD_DIR"
-    return 1
+  if [ ! -x "${HOME_DIR}/.nix-profile/bin/nix-env" ]; then
+    log "Installing Nix package manager (single-user) for ${TARGET_USER}..."
+    sudo -u "$TARGET_USER" sh -c 'curl -fsSL https://nixos.org/nix/install | sh -s -- --no-daemon'
   fi
 
-  set +e
-  log "Installing Hyprland..."
-  cmake --install build 2>&1 | tail -5
-  RC_BUILD=${PIPESTATUS[0]}
-  set -e
+  log "Fetching Hyprland from cache.nixos.org (prebuilt, ~250MB)..."
+  sudo -u "$TARGET_USER" bash -c \
+    ". '${HOME_DIR}/.nix-profile/etc/profile.d/nix.sh' && nix-env -f '${NIXPKGS_URL}' -iA hyprland"
 
-  cd /
-  rm -rf "$BUILD_DIR"
-  log "Hyprland built and installed from source"
+  log "Linking Hyprland binaries into /usr/local/bin..."
+  for bin in Hyprland hyprctl hyprpm; do
+    ln -sf "${HOME_DIR}/.nix-profile/bin/${bin}" "/usr/local/bin/${bin}"
+  done
 }
 
 # ---------------------------------------------------------------------------

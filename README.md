@@ -17,7 +17,7 @@ sudo bash install.sh --non-interactive --skip-nvidia
 ## Features
 
 ### Phase 1 — Core Desktop
-- **Hyprland** — Dynamic tiling Wayland compositor with animations & blur
+- **Hyprland** — Dynamic tiling Wayland compositor with animations & blur (installed as a prebuilt package via [Nix](https://nixos.org/), since neither distro ships a libwayland new enough for current Hyprland releases)
 - **Waybar** — Customizable status bar with workspaces, system tray, media controls
 - **Rofi** — Application launcher with drun/run/window modes
 - **Dunst** — Notification daemon with urgency-based theming
