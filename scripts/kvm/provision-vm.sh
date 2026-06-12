@@ -68,7 +68,11 @@ runcmd:
 
     # Auto-start Hyprland on the console for manual VNC testing
     if [ -z "\${WAYLAND_DISPLAY:-}" ] && [ "\$(tty)" = "/dev/tty1" ] && command -v Hyprland >/dev/null 2>&1; then
-      exec Hyprland
+      if ls /dev/dri/card* >/dev/null 2>&1; then
+        exec Hyprland >> /home/tester/hyprland.log 2>&1
+      else
+        echo "No GPU device (/dev/dri) found - Hyprland cannot start on this console." | tee -a /home/tester/hyprland.log
+      fi
     fi
     PROFILE
 
