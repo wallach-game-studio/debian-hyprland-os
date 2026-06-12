@@ -100,6 +100,9 @@ bash scripts/kvm/collect-metrics.sh debian12
 bash scripts/kvm/teardown-vm.sh debian12
 ```
 
+See [DEVELOPMENT.md](DEVELOPMENT.md) for a full local development guide,
+including manual VNC desktop sessions and previewing the GitHub Pages site.
+
 ## Project Structure
 
 ```
