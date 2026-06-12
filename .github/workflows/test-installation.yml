@@ -127,6 +127,13 @@ jobs:
         with:
           limit-access-to-actor: true
 
+      - name: Start desktop session for manual testing
+        if: |
+          always() &&
+          github.event.inputs.manual_test_minutes != '0' &&
+          github.event.inputs.manual_test_minutes != ''
+        run: bash scripts/kvm/start-manual-desktop.sh "${{ matrix.distro }}"
+
       - name: Web VNC tunnel for manual testing
         if: |
           always() &&
@@ -162,9 +169,13 @@ jobs:
            fi
 
            # Expose via cloudflared quick tunnel (no account/config needed)
+           # --protocol http2 avoids QUIC (UDP), which is often blocked/slow on
+           # GitHub-hosted runners and causes the tunnel to take minutes to
+           # become reachable. --edge-ip-version 4 skips IPv6 edge connection
+           # attempts that can also stall on these runners.
            echo "--> Establishing public web URL via cloudflared..."
            TUNNEL_LOG="/tmp/kvm-test/${{ matrix.distro }}/tunnel.log"
-           cloudflared tunnel --url http://localhost:6080 > "$TUNNEL_LOG" 2>&1 &
+           cloudflared tunnel --url http://localhost:6080 --protocol http2 --edge-ip-version 4 > "$TUNNEL_LOG" 2>&1 &
            TUNNEL_PID=$!
 
            # Poll the log for the trycloudflare.com URL (cloudflared prints it once the tunnel is live)

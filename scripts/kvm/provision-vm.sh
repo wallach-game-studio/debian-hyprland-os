@@ -55,6 +55,26 @@ package_upgrade: false
 
 runcmd:
   - touch /tmp/cloud-init-done
+  - mkdir -p /etc/systemd/system/getty@tty1.service.d
+  - |
+    cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << 'GETTY'
+    [Service]
+    ExecStart=
+    ExecStart=-/sbin/agetty --autologin tester --noclear %I \$TERM
+    GETTY
+  - systemctl daemon-reload
+  - |
+    cat >> /home/tester/.profile << 'PROFILE'
+
+    # Auto-start Hyprland on the console for manual VNC testing
+    if [ -z "\${WAYLAND_DISPLAY:-}" ] && [ "\$(tty)" = "/dev/tty1" ] && command -v Hyprland >/dev/null 2>&1; then
+      if ls /dev/dri/card* >/dev/null 2>&1; then
+        exec Hyprland >> /home/tester/hyprland.log 2>&1
+      else
+        echo "No GPU device (/dev/dri) found - Hyprland cannot start on this console." | tee -a /home/tester/hyprland.log
+      fi
+    fi
+    PROFILE
 
 final_message: "VM ${DISTRO} ready after \$UPTIME seconds"
 EOF

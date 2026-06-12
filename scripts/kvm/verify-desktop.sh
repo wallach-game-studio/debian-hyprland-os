@@ -88,6 +88,9 @@ vm_ssh "
   export WLR_BACKENDS=headless
   export WLR_RENDERER=pixman
   export HYPRLAND_NO_RT=1
+  export LIBGL_DEBUG=verbose
+  export EGL_LOG_LEVEL=debug
+  export MESA_DEBUG=1
   export XDG_RUNTIME_DIR=/tmp/xdg-runtime-\$USER
   mkdir -p \$XDG_RUNTIME_DIR
   chmod 700 \$XDG_RUNTIME_DIR
@@ -95,7 +98,7 @@ vm_ssh "
 
   # Start Hyprland in background, let it run for 10s
   Hyprland 2>&1 &
-  HYPR_PID=\$?
+  HYPR_PID=\$!
   echo \$HYPR_PID > /tmp/hyprland.pid
 
   sleep 10
@@ -111,6 +114,84 @@ vm_ssh "
     echo 'HYPRLAND_RUNNING=false' > /tmp/hypr-status.txt
   fi
 " 2>&1 | tee "${RESULTS_DIR}/hyprland-start.log" || true
+
+# --- GPU/DRM diagnostics (helps debug headless backend failures) ---
+echo "--> Collecting GPU/DRM diagnostics..."
+vm_ssh "
+  echo '--- /dev/dri ---'
+  ls -la /dev/dri/ 2>&1 || echo 'no /dev/dri'
+  echo '--- lsmod (drm/vgem/virtio) ---'
+  lsmod | grep -iE 'drm|vgem|virtio_gpu' || echo 'none loaded'
+  echo '--- modinfo virtio_gpu ---'
+  modinfo virtio_gpu 2>&1 | head -5
+  echo '--- modinfo vgem ---'
+  modinfo vgem 2>&1 | head -5
+  echo '--- id ---'
+  id
+  echo '--- seatd ---'
+  systemctl is-active seatd 2>&1
+  ls -la /run/seatd.sock 2>&1
+  echo '--- nix mesa / DRI drivers ---'
+  ls -la \$HOME/.nix-profile/lib/dri/ 2>&1 || echo 'no dri dir in nix-profile'
+  find /nix/store -maxdepth 1 -iname '*mesa*' 2>/dev/null
+  echo '--- /etc/environment ---'
+  cat /etc/environment 2>&1 || echo 'no /etc/environment'
+  echo '--- LIBGL_DRIVERS_PATH (in SSH session) ---'
+  echo \"LIBGL_DRIVERS_PATH=\${LIBGL_DRIVERS_PATH:-unset}\"
+  if [ -n \"\${LIBGL_DRIVERS_PATH:-}\" ]; then
+    ls -la \"\$LIBGL_DRIVERS_PATH\" 2>&1 | head -30
+  fi
+  echo '--- Hyprland binary type ---'
+  HYPR_BIN=\$(command -v Hyprland)
+  echo \"command -v Hyprland: \$HYPR_BIN\"
+  file \"\$HYPR_BIN\" 2>&1
+  HYPR_REAL=\$(readlink -f \"\$HYPR_BIN\")
+  echo \"readlink -f: \$HYPR_REAL\"
+  file \"\$HYPR_REAL\" 2>&1
+  HYPR_WRAPPED=\$(dirname \"\$HYPR_REAL\")/.Hyprland-wrapped
+  echo '--- .Hyprland-wrapped EGL/GBM/GL library deps ---'
+  ldd \"\$HYPR_WRAPPED\" 2>&1 | grep -iE 'egl|gbm|glx|libgl|glvnd' || echo 'ldd: nothing matched'
+  echo '--- libEGL strings (platform/glvnd support) ---'
+  EGL_LIB=\$(ldd \"\$HYPR_WRAPPED\" 2>/dev/null | grep -i 'libEGL\\.so' | awk '{print \$3}' | head -1)
+  echo \"libEGL path: \${EGL_LIB:-not found}\"
+  if [ -n \"\$EGL_LIB\" ] && [ -f \"\$EGL_LIB\" ]; then
+    strings \"\$EGL_LIB\" | grep -iE 'platform_(gbm|drm|wayland|x11|surfaceless)|glvnd|egl_vendor' | sort -u
+  fi
+  echo '--- glvnd EGL vendor JSON files in /nix/store ---'
+  find /nix/store -maxdepth 6 -path '*egl_vendor.d*.json' 2>/dev/null | head -10
+  echo '--- __EGL_VENDOR env (in SSH session) ---'
+  echo \"__EGL_VENDOR_LIBRARY_DIRS=\${__EGL_VENDOR_LIBRARY_DIRS:-unset}\"
+  echo \"__EGL_VENDOR_LIBRARY_FILENAMES=\${__EGL_VENDOR_LIBRARY_FILENAMES:-unset}\"
+  echo '--- eglinfo (system Mesa, surfaceless/llvmpipe) ---'
+  sudo apt-get install -y -qq mesa-utils-extra > /dev/null 2>&1 || true
+  if command -v eglinfo >/dev/null 2>&1; then
+    EGL_PLATFORM=surfaceless LIBGL_ALWAYS_SOFTWARE=1 eglinfo 2>&1 | head -8
+    echo '--- eglinfo (system Mesa, gbm platform) ---'
+    EGL_PLATFORM=gbm LIBGL_ALWAYS_SOFTWARE=1 eglinfo 2>&1 | head -8
+  else
+    echo 'eglinfo not available'
+  fi
+  echo '--- eglinfo (nix mesa, matches Hyprland) ---'
+  . \$HOME/.nix-profile/etc/profile.d/nix.sh 2>/dev/null || true
+  nix-env -f 'https://channels.nixos.org/nixos-24.11/nixexprs.tar.xz' -iA mesa-demos > /dev/null 2>&1 || echo 'mesa-demos install failed'
+  if [ -x \$HOME/.nix-profile/bin/eglinfo ]; then
+    echo '  -- surfaceless --'
+    EGL_PLATFORM=surfaceless LIBGL_ALWAYS_SOFTWARE=1 \$HOME/.nix-profile/bin/eglinfo 2>&1 | head -10
+    echo '  -- gbm --'
+    EGL_PLATFORM=gbm LIBGL_ALWAYS_SOFTWARE=1 \$HOME/.nix-profile/bin/eglinfo 2>&1 | head -20
+  else
+    echo 'nix eglinfo not available'
+  fi
+  echo '--- Hyprland wrapper script contents ---'
+  cat \"\$HYPR_REAL\" 2>&1 | head -100
+  echo '--- system Mesa DRI drivers (/usr/lib) ---'
+  find /usr/lib -maxdepth 4 -iname '*_dri.so' 2>/dev/null | head -20
+  find /usr/lib -maxdepth 3 -type d -iname dri 2>/dev/null
+  echo '--- all *_dri.so in /nix/store ---'
+  find /nix/store -maxdepth 4 -iname '*_dri.so' 2>/dev/null | head -20
+  echo '--- hyprland crash report (tail) ---'
+  cat \$HOME/.cache/hyprland/hyprlandCrashReport*.txt 2>/dev/null | tail -150 || echo 'no crash report'
+" > "${RESULTS_DIR}/gpu-diagnostics.log" 2>&1 || true
 
 # Retrieve Hyprland status
 vm_ssh "cat /tmp/hypr-status.txt 2>/dev/null || echo 'HYPRLAND_RUNNING=unknown'" \
