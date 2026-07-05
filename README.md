@@ -1,5 +1,8 @@
 # debian-hyprland-os
 
+> [!NOTE]
+> currently development is in branch master2 and dev, as this original project is ai slop.
+
 Automated Hyprland desktop environment installer for **Debian 12 (Bookworm)** and **Ubuntu 24.04 LTS (Noble)**.
 
 ## Quick Start
