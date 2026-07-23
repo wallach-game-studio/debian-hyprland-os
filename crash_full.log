@@ -1,0 +1,80 @@
+debian-hyprland-dev  | Starting OpenBSD Secure Shell server: sshd.
+debian-hyprland-dev  | 00:00:00.000 [INFO] [seatd/seat.c:48] Created VT-bound seat seat0
+debian-hyprland-dev  | 00:00:00.000 [INFO] [seatd/seatd.c:194] seatd started
+debian-hyprland-dev  | [ WARNING ] Running Hyprland with superuser privileges might damage your system
+debian-hyprland-dev  | Superuser privileges check is omitted. I hope you know what you're doing.
+debian-hyprland-dev  | Welcome to Hyprland!
+debian-hyprland-dev  | 
+debian-hyprland-dev  |                                                   
+debian-hyprland-dev  |                      YY    UJ                     
+debian-hyprland-dev  |                     YYY    UUJ                    
+debian-hyprland-dev  |                    XXXY    UUUU                   
+debian-hyprland-dev  |                   zXXXX    UUUUU                  
+debian-hyprland-dev  |                 zzzzX        UUUUJ                
+debian-hyprland-dev  |                cczzz          UUUUJ               
+debian-hyprland-dev  |              vccccz            UUUUUJ             
+debian-hyprland-dev  |             vvcccc              UUUUUJ            
+debian-hyprland-dev  |            vvvvv                  UUUUJ           
+debian-hyprland-dev  |           uuuvv                    UUUUJ          
+debian-hyprland-dev  |          uuuuu                      UUUUU         
+debian-hyprland-dev  |         nnnuu                        UUUUU        
+debian-hyprland-dev  |        nnnnn                          YUUUU       
+debian-hyprland-dev  |        xxnn                            YUUU       
+debian-hyprland-dev  |        xxxn                            YYUU       
+debian-hyprland-dev  |       xxxx                              YYUU      
+debian-hyprland-dev  |       rxxx                              YYYY      
+debian-hyprland-dev  |       rrrx                              YYYY      
+debian-hyprland-dev  |        rrrx                            XXXY       
+debian-hyprland-dev  |        rrrr                            XXXX       
+debian-hyprland-dev  |         rrrr                          zzXX        
+debian-hyprland-dev  |          rrrr                        zzzz         
+debian-hyprland-dev  |           rrrrr                    ccczz          
+debian-hyprland-dev  |            rrrrrx                vccccc           
+debian-hyprland-dev  |              rrrrxxxx        uuvvvvvc             
+debian-hyprland-dev  |                 rrxxxxxxnnnnuuuuuv                
+debian-hyprland-dev  |                     xxxxxnnnnu                    
+debian-hyprland-dev  | 
+debian-hyprland-dev  | 
+debian-hyprland-dev  | 
+debian-hyprland-dev  | [!!WARNING!!] XDG_RUNTIME_DIR looks non-standard. Proceeding anyways...
+debian-hyprland-dev  | DEBUG ]: Old rlimit: soft -> 65536, hard -> 524288
+debian-hyprland-dev  | DEBUG ]: New rlimit: soft -> 524288, hard -> 524288
+debian-hyprland-dev  | WARN ]: WARNING: Hyprland is being launched without start-hyprland. This is highly advised against.
+debian-hyprland-dev  | DEBUG ]: Creating the EventLoopManager!
+debian-hyprland-dev  | DEBUG ]: Creating the KeybindManager!
+debian-hyprland-dev  | DEBUG ]: Creating the AnimationManager!
+debian-hyprland-dev  | DEBUG ]: Creating the DynamicPermissionManager!
+debian-hyprland-dev  | DEBUG ]: Creating the ConfigManager!
+debian-hyprland-dev  | DEBUG ]: [cfg] Regular config at /root/.config/hypr/hyprland.conf
+debian-hyprland-dev  | DEBUG ]: [cfg] Lua config not found, using legacy config at /root/.config/hypr/hyprland.conf
+debian-hyprland-dev  | WARN ]: Creating config home directory
+debian-hyprland-dev  | WARN ]: No config file found; attempting to generate.
+debian-hyprland-dev  | DEBUG ]: Using config: /root/.config/hypr/hyprland.conf
+debian-hyprland-dev  | DEBUG ]: !!!!HEY YOU, YES YOU!!!!: further logs to stdout / logfile are disabled by default. BEFORE SENDING THIS LOG, ENABLE THEM. Use debug:disable_logs = false to do so: https://wiki.hypr.land/Configuring/Basics/Variables/#debug
+debian-hyprland-dev  | DEBUG ]: Creating the Error Overlay!
+debian-hyprland-dev  | DEBUG ]: Creating the LayoutManager!
+debian-hyprland-dev  | DEBUG ]: Creating the TokenManager!
+debian-hyprland-dev  | DEBUG ]: Using config: /root/.config/hypr/hyprland.conf
+debian-hyprland-dev  | DEBUG ]: Disabling stdout logs! Check the log for further logs.
+debian-hyprland-dev  | DEBUG ]: Creating the PointerManager!
+debian-hyprland-dev  | DEBUG ]: Creating the EventManager!
+debian-hyprland-dev  | DEBUG ]: Creating the AsyncResourceGatherer!
+debian-hyprland-dev  | 
+debian-hyprland-dev  | (process:68): dconf-WARNING **: 04:52:22.520: failed to commit changes to dconf: Cannot autolaunch D-Bus without X11 $DISPLAY
+debian-hyprland-dev  | 
+debian-hyprland-dev  | (process:68): dconf-WARNING **: 04:52:22.520: failed to commit changes to dconf: Cannot autolaunch D-Bus without X11 $DISPLAY
+debian-hyprland-dev  | Hyprland is up, WAYLAND_DISPLAY=wayland-1
+debian-hyprland-dev  | WebSocket server settings:
+debian-hyprland-dev  |   - Listen on :6080
+debian-hyprland-dev  |   - Web server. Web root: /opt/novnc
+debian-hyprland-dev  |   - No SSL/TLS support (no cert file)
+debian-hyprland-dev  |   - proxying from :6080 to 127.0.0.1:5900
+debian-hyprland-dev  | All services started successfully
+debian-hyprland-dev  | 172.18.0.1 - - [06/Jul/2026 04:52:31] 172.18.0.1: Plain non-SSL (ws://) WebSocket connection
+debian-hyprland-dev  | 172.18.0.1 - - [06/Jul/2026 04:52:31] 172.18.0.1: Path: '/websockify'
+debian-hyprland-dev  | 172.18.0.1 - - [06/Jul/2026 04:52:31] connecting to: 127.0.0.1:5900
+debian-hyprland-dev  | Hyprland has crashed :( Consult the crash report at /root/.cache/hyprland/hyprlandCrashReport68.txt for more information.
+debian-hyprland-dev  | /bin/sh: 1: lspci: not found
+debian-hyprland-dev  | ERROR: ../src/main.c: 509: Compositor has gone away. Exiting...
+debian-hyprland-dev  | (EE) failed to read Wayland events: Broken pipe
+debian-hyprland-dev  | A background process exited unexpectedly

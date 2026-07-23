@@ -80,7 +80,7 @@ vm_ssh "
   echo \"EXIT_CODE=\${INSTALL_EXIT}\"
   exit \$INSTALL_EXIT
 " 2>&1 | tee "${RESULTS_DIR}/install.log"
-INSTALL_RC=${PIPESTATUS[0]}
+INSTALL_RC=${PIPESTATUS[0]} # SSH exit code (install script exit code)
 set -e
 
 INSTALL_ELAPSED=$(( $(date +%s) - INSTALL_START ))

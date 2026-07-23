@@ -2,6 +2,18 @@
 
 Automated Hyprland desktop environment installer for **Debian 12 (Bookworm)** and **Ubuntu 24.04 LTS (Noble)**.
 
+
+### edit, for dev image build use 
+```
+docker compose build --no-cache --progress=plain
+
+docker compose build --no-cache --progress=plain >  /tmp/debhypr.build.log
+
+mv /tmp/debhypr.build.log /tmp/debhypr.build.log.old &&  docker compose build --no-cache --progress=plain >  /tmp/debhypr.build.log
+
+git diff --no-index --color /tmp/debhypr.build.log.old /tmp/debhypr.build.log
+```
+
 ## Quick Start
 
 ```bash

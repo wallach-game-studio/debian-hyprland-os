@@ -122,6 +122,10 @@ install_base() {
 # Instead, install a prebuilt Hyprland from nixpkgs (nixos-24.11), which is
 # fully cached on cache.nixos.org and requires no local compilation.
 install_hyprland() {
+  if [ "${SKIP_NIX:-false}" = "true" ]; then
+    log "Skipping Nix installation per SKIP_NIX=true"
+    return
+  fi
   log "Installing Hyprland from nixpkgs (prebuilt binaries, no compilation)..."
 
   local TARGET_USER="${SUDO_USER:-$USER}"
@@ -220,6 +224,10 @@ install_hyprland() {
 # share/glvnd/egl_vendor.d/50_mesa.json - point libglvnd at it directly via
 # __EGL_VENDOR_LIBRARY_FILENAMES.
 configure_mesa_driver_path() {
+  if [ "${SKIP_NIX:-false}" = "true" ]; then
+    log "Skipping Mesa driver install due to SKIP_NIX"
+    return
+  fi
   local TARGET_USER="${SUDO_USER:-$USER}"
   local HOME_DIR
   HOME_DIR=$(getent passwd "$TARGET_USER" | cut -d: -f6)
@@ -525,13 +533,18 @@ main() {
 
   detect_distro
   install_base
-  install_hyprland
-  configure_mesa_driver_path
+    if [ "${SKIP_NIX:-false}" != "true" ]; then
+    install_hyprland
+    fi
+    # configure_mesa_driver_path
   install_components
   install_configs
   install_nvidia_if_present
   configure_virtio_gpu_fallback
-  verify_install
+    if [ "${SKIP_VERIFY:-false}" != "true" ]; then
+    verify_install
+    fi
+
 
   echo
   log "Installation complete!"

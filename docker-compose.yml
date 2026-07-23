@@ -1,0 +1,52 @@
+services:
+  dev:
+    build: .
+    container_name: debian-hyprland-dev
+    volumes:
+      - ./hyprland.conf:/root/.config/hypr/hyprland.conf:ro
+      - ./entrypoint.sh:/entrypoint.sh:ro
+    # nvidia GBM can't allocate buffers for the headless/virtual output this
+    # setup needs (VNC-only, no real display attached), so this runs on
+    # software rendering (vgem + Mesa llvmpipe) instead - see `devices:`
+    # below. Run `sudo modprobe vgem` on the host first.
+    #
+    # Only the vgem nodes are passed through, not all of /dev/dri: aquamarine
+    # always prefers a KMS-capable device as primary renderer, so if a real
+    # GPU (e.g. nvidia) is visible at all it wins and EGL init fails since no
+    # matching driver is installed for it. Find the vgem numbers with
+    # `for c in /sys/class/drm/card[0-9]*; do readlink -f $c/device; done`
+    # (the one under .../faux/vgem) and update the paths below if they drift.
+    # runtime: nvidia
+    # environment:
+    #   - NVIDIA_VISIBLE_DEVICES=all
+    #   - NVIDIA_DRIVER_CAPABILITIES=all
+    #   - __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/10_nvidia.json
+    #   - __GLX_VENDOR_LIBRARY_NAME=nvidia
+    #   - GBM_BACKEND=nvidia-drm
+    cap_add:
+      - SYS_ADMIN
+      - SYS_TTY_CONFIG
+      - SYS_NICE
+    security_opt:
+      - seccomp:unconfined
+
+    devices:
+      - /dev/dri/card0:/dev/dri/card0
+      - /dev/dri/renderD129:/dev/dri/renderD129
+    # intel / amd gpus
+    # devices:
+    #   - /dev/dri:/dev/dri
+    # nvidia gpus
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+    entrypoint: ["bash", "/entrypoint.sh"]
+
+    ports:
+      - "5900:5900"
+      - "6080:6080"
